@@ -39,8 +39,9 @@ function App() {
     };
 
     try {
-      // Post data to the user API - use current hostname instead of localhost
-      const apiUrl = `${window.location.protocol}//${window.location.hostname}:5000/user`;
+      // Post data to the user API - use current hostname and environment variable for port
+      const apiPort = process.env.REACT_APP_API_PORT || '5000';
+      const apiUrl = `${window.location.protocol}//${window.location.hostname}:${apiPort}/user`;
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {

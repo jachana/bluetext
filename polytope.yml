@@ -10,15 +10,17 @@ modules:
       cmd: ./bin/run
       env:
         - name: PORT
-          value: 3000
+          value: "#pt-value frontend_port"
+        - name: REACT_APP_API_PORT
+          value: "#pt-value api_port"
       restart:
         policy: always
       services:
         - id: frontend
           ports: 
             - protocol: http
-              port: 3000
-              expose-as: 3000
+              port: "#pt-value frontend_port"
+              expose-as: "#pt-value frontend_port"
       mounts:
         - path: /root/.cache/
           source: 
@@ -47,23 +49,23 @@ modules:
       cmd: ./bin/run
       env:
         - name: PORT
-          value: 5000
+          value: "#pt-value api_port"
         - name: COUCHBASE_HOST
-          value: couchbase
+          value: "#pt-value couchbase_host"
         - name: COUCHBASE_USERNAME
-          value: admin
+          value: "#pt-secret couchbase_username"
         - name: COUCHBASE_PASSWORD
-          value: password
+          value: "#pt-secret couchbase_password"
         - name: COUCHBASE_MAIN_BUCKET_NAME
-          value: main
+          value: "#pt-value couchbase_bucket_name"
       restart:
         policy: always
       services:
         - id: api
           ports:
             - protocol: http
-              port: 5000
-              expose-as: 5000
+              port: "#pt-value api_port"
+              expose-as: "#pt-value api_port"
       mounts:
         - path: /root/.cache/pip/
           source:
@@ -96,13 +98,13 @@ modules:
         policy: on-failure
       env:
         - name: COUCHBASE_HOST
-          value: couchbase
+          value: "#pt-value couchbase_host"
         - name: COUCHBASE_USERNAME
-          value: admin
+          value: "#pt-secret couchbase_username"
         - name: COUCHBASE_PASSWORD
-          value: password
+          value: "#pt-secret couchbase_password"
         - name: COUCHBASE_MAIN_BUCKET_NAME
-          value: main
+          value: "#pt-value couchbase_bucket_name"
       mounts:
         - path: /root/.cache/
           source:

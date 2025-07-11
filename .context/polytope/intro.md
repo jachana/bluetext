@@ -248,3 +248,5 @@ Is of the data type PolytopeFile so it should be follow this schema.
 
 - Steps may be started before steps that they depend on are fully ready to serve requests, e.g. a Couchbase server step may be initializing
 an API step is trying to connect to it.
+- A polytope app that accesses another polytope app using a URL should derive that URL from an environment variable that is specified in the polytope.yml file. This variable should be stored as a Polytope secret. 
+

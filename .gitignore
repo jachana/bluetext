@@ -1,3 +1,6 @@
+# Polytope
+.values_and_secrets.sh
+
 # Python
 __pycache__/
 *.py[cod]
