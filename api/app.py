@@ -22,8 +22,8 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # React dev server
-    allow_credentials=True,
+    allow_origins=["*"],  # Allow all origins for remote VM compatibility
+    allow_credentials=False,  # Set to False when using allow_origins=["*"]
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -108,7 +108,7 @@ async def startup_event():
     print("Starting API server...")
     # Don't block startup if Couchbase isn't ready yet
     # Connection will be attempted lazily when needed
-    connect_to_couchbase_with_retry(max_retries=5, retry_interval=1)
+    connect_to_couchbase_with_retry(max_retries=100, retry_interval=1)
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -170,7 +170,54 @@ async def create_user(user_data: UserData):
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {'status': 'healthy', 'service': 'date-api'}
+    global users_collection, cluster, bucket
+    
+    couchbase_status = "connected" if users_collection is not None else "disconnected"
+    
+    return {
+        'status': 'healthy', 
+        'service': 'date-api',
+        'couchbase_status': couchbase_status,
+        'couchbase_host': COUCHBASE_HOST,
+        'bucket_name': COUCHBASE_BUCKET_NAME
+    }
+
+@app.get("/debug/couchbase")
+async def debug_couchbase():
+    """Debug endpoint to check Couchbase connection status"""
+    global users_collection, cluster, bucket
+    
+    return {
+        'cluster_connected': cluster is not None,
+        'bucket_connected': bucket is not None,
+        'collection_connected': users_collection is not None,
+        'couchbase_host': COUCHBASE_HOST,
+        'bucket_name': COUCHBASE_BUCKET_NAME,
+        'username': COUCHBASE_USERNAME
+    }
+
+@app.post("/debug/reconnect")
+async def debug_reconnect():
+    """Debug endpoint to force reconnection to Couchbase"""
+    global cluster, bucket, users_collection
+    
+    # Close existing connection
+    if cluster:
+        cluster.close()
+    
+    cluster = None
+    bucket = None
+    users_collection = None
+    
+    # Attempt reconnection
+    success = connect_to_couchbase_with_retry(max_retries=5, retry_interval=1)
+    
+    return {
+        'reconnection_successful': success,
+        'cluster_connected': cluster is not None,
+        'bucket_connected': bucket is not None,
+        'collection_connected': users_collection is not None
+    }
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
