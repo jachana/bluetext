@@ -243,3 +243,8 @@ This comprehensive reference should provide all the context needed to work effec
 ## polytope.yml file
 
 Is of the data type PolytopeFile so it should be follow this schema. 
+
+## Gotchas
+
+- Steps may be started before steps that they depend on are fully ready to serve requests, e.g. a Couchbase server step may be initializing
+an API step is trying to connect to it. 

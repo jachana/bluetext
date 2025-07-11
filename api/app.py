@@ -5,10 +5,13 @@ from datetime import datetime
 import os
 import uvicorn
 import uuid
+import time
 from couchbase.cluster import Cluster
 from couchbase.auth import PasswordAuthenticator
-from couchbase.options import ClusterOptions
-from couchbase.exceptions import CouchbaseException
+from couchbase.options import ClusterOptions, WaitUntilReadyOptions
+from couchbase.exceptions import CouchbaseException, RequestCanceledException, AuthenticationException
+from couchbase.diagnostics import ServiceType
+from datetime import timedelta
 
 app = FastAPI(
     title="Date API",
@@ -36,26 +39,76 @@ cluster = None
 bucket = None
 users_collection = None
 
+def connect_to_couchbase_with_retry(max_retries=30, retry_interval=2):
+    """Connect to Couchbase with retry logic"""
+    global cluster, bucket, users_collection
+    
+    for attempt in range(max_retries):
+        try:
+            print(f"Attempting to connect to Couchbase (attempt {attempt + 1}/{max_retries})...")
+            
+            # Connect to Couchbase cluster
+            auth = PasswordAuthenticator(COUCHBASE_USERNAME, COUCHBASE_PASSWORD)
+            cluster_options = ClusterOptions(auth)
+            cluster = Cluster(f'couchbase://{COUCHBASE_HOST}', cluster_options)
+            
+            # Wait until cluster is ready
+            wait_options = WaitUntilReadyOptions(
+                service_types=[ServiceType.KeyValue, ServiceType.Query, ServiceType.Management]
+            )
+            cluster.wait_until_ready(timedelta(seconds=30), wait_options)
+            
+            # Get bucket and collection
+            bucket = cluster.bucket(COUCHBASE_BUCKET_NAME)
+            users_collection = bucket.scope("_default").collection("users")
+            
+            print(f"Successfully connected to Couchbase at {COUCHBASE_HOST}")
+            return True
+            
+        except (RequestCanceledException, AuthenticationException, CouchbaseException) as e:
+            if attempt == max_retries - 1:
+                print(f"Failed to connect to Couchbase after {max_retries} attempts: {e}")
+                cluster = None
+                bucket = None
+                users_collection = None
+                return False
+            
+            if isinstance(e, RequestCanceledException):
+                print("Waiting for connection to cluster...")
+            elif isinstance(e, AuthenticationException):
+                print("Waiting for cluster to initialize...")
+            else:
+                print(f"Connection attempt failed: {e}")
+            
+            time.sleep(retry_interval)
+        except Exception as e:
+            print(f"Unexpected error connecting to Couchbase: {e}")
+            if attempt == max_retries - 1:
+                cluster = None
+                bucket = None
+                users_collection = None
+                return False
+            time.sleep(retry_interval)
+    
+    return False
+
+def ensure_couchbase_connection():
+    """Ensure we have a valid Couchbase connection, retry if needed"""
+    global users_collection
+    
+    if users_collection is None:
+        print("No Couchbase connection, attempting to connect...")
+        connect_to_couchbase_with_retry(max_retries=10, retry_interval=1)
+    
+    return users_collection is not None
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize Couchbase connection on startup"""
-    global cluster, bucket, users_collection
-    try:
-        # Connect to Couchbase cluster
-        auth = PasswordAuthenticator(COUCHBASE_USERNAME, COUCHBASE_PASSWORD)
-        cluster = Cluster(f'couchbase://{COUCHBASE_HOST}', ClusterOptions(auth))
-        
-        # Get bucket and collection
-        bucket = cluster.bucket(COUCHBASE_BUCKET_NAME)
-        users_collection = bucket.scope("_default").collection("users")
-        
-        print(f"Connected to Couchbase at {COUCHBASE_HOST}")
-    except Exception as e:
-        print(f"Failed to connect to Couchbase: {e}")
-        # Don't fail startup, just log the error
-        cluster = None
-        bucket = None
-        users_collection = None
+    print("Starting API server...")
+    # Don't block startup if Couchbase isn't ready yet
+    # Connection will be attempted lazily when needed
+    connect_to_couchbase_with_retry(max_retries=5, retry_interval=1)
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -83,7 +136,8 @@ async def create_user(user_data: UserData):
     """Create a user with name and age"""
     global users_collection
     
-    if users_collection is None:
+    # Ensure we have a connection, retry if needed
+    if not ensure_couchbase_connection():
         raise HTTPException(status_code=503, detail="Database connection not available")
     
     try:
