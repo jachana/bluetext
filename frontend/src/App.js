@@ -39,8 +39,9 @@ function App() {
     };
 
     try {
-      // Post data to the user API
-      const response = await fetch('http://localhost:5000/user', {
+      // Post data to the user API - use current hostname instead of localhost
+      const apiUrl = `${window.location.protocol}//${window.location.hostname}:5000/user`;
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
