@@ -1,0 +1,128 @@
+modules:
+  - id: frontend
+    module: polytope/node
+    args:
+      id: frontend
+      image: node:22-bullseye-slim
+      code: 
+        type: host
+        path: ./frontend
+      cmd: ./bin/run
+      env:
+        - name: PORT
+          value: 3000
+      restart:
+        policy: always
+      services:
+        - id: frontend
+          ports: 
+            - protocol: http
+              port: 3000
+              expose-as: 3000
+      mounts:
+        - path: /root/.cache/
+          source: 
+            type: volume
+            scope: project
+            id: dependency-cache
+        - path: /root/.npm/
+          source: 
+            type: volume
+            scope: project
+            id: npm-cache
+        - path: /app/node_modules/
+          source: 
+            type: volume
+            scope: project
+            id: npm-modules
+
+  - id: api
+    module: polytope/python
+    args:
+      id: api
+      image: python:3.11-slim
+      code:
+        type: host
+        path: ./api
+      cmd: ./bin/run
+      env:
+        - name: PORT
+          value: 5000
+        - name: COUCHBASE_HOST
+          value: couchbase
+        - name: COUCHBASE_USERNAME
+          value: admin
+        - name: COUCHBASE_PASSWORD
+          value: password
+        - name: COUCHBASE_MAIN_BUCKET_NAME
+          value: main
+      restart:
+        policy: always
+      services:
+        - id: api
+          ports:
+            - protocol: http
+              port: 5000
+              expose-as: 5000
+      mounts:
+        - path: /root/.cache/pip/
+          source:
+            type: volume
+            scope: project
+            id: pip-cache
+
+  - id: couchbase
+    module: polytope/couchbase
+    args:
+      image: couchbase:enterprise-7.6.6
+      id: couchbase
+      restart:
+        policy: always
+      data-volume:
+        type: volume
+        scope: project
+        id: couchbase-data
+
+  - id: couchbase-init
+    module: polytope/python
+    args:
+      image: python:3.11-slim
+      id: init-couchbase
+      code:
+        type: host
+        path: ./util/couchbase-init
+      cmd: ./bin/run
+      restart:
+        policy: on-failure
+      env:
+        - name: COUCHBASE_HOST
+          value: couchbase
+        - name: COUCHBASE_USERNAME
+          value: admin
+        - name: COUCHBASE_PASSWORD
+          value: password
+        - name: COUCHBASE_MAIN_BUCKET_NAME
+          value: main
+      mounts:
+        - path: /root/.cache/
+          source:
+            type: volume
+            scope: project
+            id: dependency-cache
+        - path: /app/conf/
+          source:
+            type: host
+            path: ./conf/couchbase
+
+templates:
+  - id: stack
+    info: "Run the React frontend application, Python API server, and Couchbase database"
+    run:
+      - module: couchbase
+      - module: couchbase-init
+      - module: frontend
+      - module: api
+  - id: api-only
+    info: "Run only the Python API server"
+    run:
+      - module: api

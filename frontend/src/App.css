@@ -1,0 +1,220 @@
+.App {
+  text-align: center;
+}
+
+.App-header {
+  background-color: #282c34;
+  padding: 20px;
+  color: white;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+}
+
+.App-header h1 {
+  margin-bottom: 20px;
+  color: #61dafb;
+  font-size: 3rem;
+}
+
+.App-header p {
+  font-size: 1.2rem;
+  margin: 10px 0;
+  max-width: 600px;
+  line-height: 1.6;
+}
+
+.features {
+  margin-top: 30px;
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 20px;
+  border-radius: 10px;
+  backdrop-filter: blur(10px);
+}
+
+.features h2 {
+  color: #61dafb;
+  margin-bottom: 15px;
+}
+
+.features ul {
+  list-style: none;
+  padding: 0;
+}
+
+.features li {
+  margin: 10px 0;
+  font-size: 1.1rem;
+}
+
+/* Form Styles */
+.user-form {
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 30px;
+  border-radius: 15px;
+  backdrop-filter: blur(10px);
+  margin: 30px 0;
+  max-width: 400px;
+  width: 100%;
+}
+
+.form-group {
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: bold;
+  color: #61dafb;
+  font-size: 1rem;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid rgba(97, 218, 251, 0.3);
+  border-radius: 8px;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: white;
+  font-size: 1rem;
+  transition: border-color 0.3s ease;
+  box-sizing: border-box;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #61dafb;
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.form-group input::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.form-buttons {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  margin-top: 25px;
+}
+
+.form-buttons button {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 100px;
+}
+
+.form-buttons button[type="submit"] {
+  background-color: #61dafb;
+  color: #282c34;
+}
+
+.form-buttons button[type="submit"]:hover {
+  background-color: #4fa8c5;
+  transform: translateY(-2px);
+}
+
+.form-buttons button[type="button"] {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.form-buttons button[type="button"]:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+}
+
+.submitted-data {
+  background-color: rgba(97, 218, 251, 0.1);
+  padding: 20px;
+  border-radius: 10px;
+  margin-top: 30px;
+  border: 2px solid rgba(97, 218, 251, 0.3);
+  max-width: 400px;
+  width: 100%;
+}
+
+.submitted-data h2 {
+  color: #61dafb;
+  margin-bottom: 15px;
+  font-size: 1.5rem;
+}
+
+.submitted-data p {
+  margin: 10px 0;
+  font-size: 1.1rem;
+  text-align: left;
+}
+
+.success-message {
+  background-color: rgba(76, 175, 80, 0.2);
+  color: #4caf50;
+  padding: 10px;
+  border-radius: 5px;
+  border-left: 4px solid #4caf50;
+  margin-bottom: 15px !important;
+  font-weight: bold;
+}
+
+.user-details {
+  background-color: rgba(255, 255, 255, 0.05);
+  padding: 15px;
+  border-radius: 8px;
+  margin-top: 10px;
+}
+
+.user-details p {
+  margin: 8px 0;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.user-details p:last-child {
+  border-bottom: none;
+}
+
+@media (max-width: 768px) {
+  .App-header {
+    font-size: calc(8px + 2vmin);
+    padding: 15px;
+  }
+  
+  .App-header h1 {
+    font-size: 2rem;
+  }
+  
+  .App-header p {
+    font-size: 1rem;
+  }
+
+  .user-form {
+    padding: 20px;
+    margin: 20px 10px;
+  }
+
+  .form-buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .form-buttons button {
+    width: 100%;
+    max-width: 200px;
+  }
+
+  .submitted-data {
+    margin: 20px 10px;
+    padding: 15px;
+  }
+}
