@@ -6,9 +6,7 @@ Use the latest Couchbase server image: "couchbase:enterprise-7.6.6"
 ## Needs to be initialized before use
 Couchbase needs to be initialized. This can be done by running the Couchbase init app. Include the Couchbase init app in the template that runs the Coachbase module.
 
-It can take up to 10 minutes for Couchbase to be initialized on the first run
-depending on the machine it is running on. Code that depends on Couchbase being up
-and running therefore needs to have long connection retry periods.
+It can take up to 10 minutes for Couchbase to be initialized on the first run depending on the machine it is running on. Code that depends on Couchbase being up and running therefore needs to have long connection retry periods.
 
 ## Testing that the connection is working
 Python: bucket.ping()
@@ -39,7 +37,7 @@ modules:
     args:
       image: gcr.io/arched-inkwell-420116/python:3.11.8-slim-bookworm
       id: init-couchbase
-      code: { type: host, path: ./util/couchbase-init }
+      code: { type: host, path: ./src/couchbase-init }
       cmd: ./bin/run
       restart: { policy: on-failure }
       env:
@@ -54,7 +52,7 @@ modules:
 
 ### Create the following executable file
 
-<file path="./util/couchbase-init/bin/run" mod="x">
+<file path="./src/couchbase-init/bin/run" mod="x">
 #!/usr/bin/env bash
 
 set -o errexit
@@ -75,7 +73,7 @@ exec python src/main.py "$@"
 
 ### Create the following executable file
 
-<file path="./util/couchbase-init/bin/lib/pip_install" mod="x">
+<file path="./src/couchbase-init/bin/lib/pip_install" mod="x">
 #!/usr/bin/env bash
 
 (
@@ -89,13 +87,13 @@ exec python src/main.py "$@"
 
 ### Create the following file
 
-<file path="./util/couchbase-init/requirements.txt">
+<file path="./src/couchbase-init/requirements.txt">
 couchbase==4.3.2
 </file>
 
 ### Create the following file
 
-<file path="./util/couchbase-init/src/main.py">
+<file path="./src/couchbase-init/src/main.py">
 import os
 import sys
 import yaml
@@ -159,7 +157,7 @@ This file should specify the scopes and collections that should be exist in the 
 
 ### Create the following file
 
-<file path="./util/couchbase-init/src/controllers/controller_bucket.py">
+<file path="./src/couchbase-init/src/controllers/controller_bucket.py">
 import time
 from couchbase.management.buckets import CreateBucketSettings, BucketType
 from couchbase.exceptions import BucketDoesNotExistException
@@ -208,7 +206,7 @@ class ControllerBucket:
 
 ### Create the following file
 
-<file path="./util/couchbase-init/src/controllers/controller_cluster.py">
+<file path="./src/couchbase-init/src/controllers/controller_cluster.py">
 import time
 import urllib.request
 import urllib.error
@@ -310,7 +308,7 @@ class ControllerCluster:
 
 ### Create the following file
 
-<file path="./util/couchbase-init/src/controllers/controller_data_structure.py">
+<file path="./src/couchbase-init/src/controllers/controller_data_structure.py">
 from couchbase.management.collections import CreateCollectionSettings
 from couchbase.exceptions import ScopeAlreadyExistsException, CollectionAlreadyExistsException
 
