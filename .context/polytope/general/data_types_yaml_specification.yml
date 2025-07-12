@@ -1,0 +1,1242 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://example.com/schemas/polytope-data-types
+title: Polytope Data Types
+description: Comprehensive schema for all Polytope data types based on the provided documentation.
+type: object  # Root can be any, but we'll define all under definitions
+additionalProperties: true
+definitions:
+  Code:
+    title: Code
+    type: string
+    description: Representation of code, prefixed with language identifier or raw Clojure form.
+    oneOf:
+      - pattern: "^#(pt-js|pt-py|pt-clj)\\s.*$"
+      - type: string  # For raw Clojure forms; assuming any valid string
+  ContainerRef:
+    title: ContainerRef
+    type: string
+    description: Reference to a container, e.g., 'my-container' or 'my-org/my-project>my-job%my-container'.
+    pattern: "^[a-z0-9_-]+(>[a-z0-9_-]+%[a-z0-9_-]+)?$"
+  ContainerSpec:
+    title: ContainerSpec
+    type: object
+    properties:
+      cmd:
+        oneOf:
+          - type: string
+          - type: array
+            items:
+              type: string
+      entrypoint:
+        type: array
+        items:
+          type: object
+          additionalProperties: true  # Maps containing entrypoint specs
+      env:
+        type: array
+        items:
+          $ref: "#/definitions/EnvVarSpec"
+      id:
+        $ref: "#/definitions/Id"
+      image:
+        type: string
+      mounts:
+        type: array
+        items:
+          type: object
+          properties:
+            path:
+              type: string
+            source:
+              $ref: "#/definitions/MountSourceSpec"
+          required:
+            - path
+            - source
+          additionalProperties: false
+      no-stdin:
+        type: boolean
+      ports:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              $ref: "#/definitions/Id"
+            port:
+              type: integer
+          required:
+            - id
+            - port
+          additionalProperties: false
+      restart:
+        type: object
+        properties:
+          max-restarts:
+            type: integer
+          policy:
+            type: string
+            enum: ["always", "never", "on-failure"]
+        required:
+          - policy
+        additionalProperties: false
+      tags:
+        type: object
+        additionalProperties:
+          type: string
+        patternProperties:
+          "^[a-z0-9_-]+$": {}
+      tty:
+        type: boolean
+      update-image:
+        type: boolean
+      user:
+        oneOf:
+          - type: string
+          - type: integer
+          - type: string
+            const: "#pt-host"
+      workdir:
+        type: string
+        pattern: "^/.*$"
+    required:
+      - image
+    additionalProperties: false
+  ContainerSummary:
+    title: ContainerSummary
+    type: object
+    properties:
+      created-by:
+        type: object
+        properties:
+          job:
+            $ref: "#/definitions/JobRefObject"  # Defining helper refs
+          project:
+            $ref: "#/definitions/ProjectRefObject"
+          step:
+            $ref: "#/definitions/StepRefObject"
+          user:
+            $ref: "#/definitions/UserRefObject"
+        additionalProperties: false
+      created-ts:
+        type: string
+      exit-code:
+        type: integer
+      exited-ts:
+        type: string
+      id:
+        $ref: "#/definitions/Id"
+      job:
+        $ref: "#/definitions/JobRefObject"
+      location:
+        $ref: "#/definitions/LocationRefObject"
+      spec:
+        $ref: "#/definitions/ContainerSpec"
+      started-ts:
+        type: string
+      status:
+        type: string
+        enum: ["restart-requested", "stopping", "running", "restarting", "failed", "pulling", "spawning", "exited"]
+      uid:
+        $ref: "#/definitions/Uid"
+    required:
+      - created-by
+      - created-ts
+      - id
+      - job
+      - location
+      - spec
+      - status
+      - uid
+    additionalProperties: false
+  CronExpr:
+    title: CronExpr
+    type: string
+    description: Cron schedule expression, e.g., '15 3 * * *'.
+  DatasetRef:
+    title: DatasetRef
+    type: string
+    description: Reference to a dataset, e.g., 'my-dataset' or 'my-org/my-project>dataset:my-dataset'.
+    pattern: "^[a-z0-9_-]+(>[a-z0-9_-]+>dataset:[a-z0-9_-]+)?$"
+  Duration:
+    title: Duration
+    type: string
+    pattern: "^[0-9]+(ms|s|m|h|d|w|mo|y)$"
+  EnvVarSpec:
+    title: EnvVarSpec
+    type: object
+    properties:
+      name:
+        type: string
+      value:
+        oneOf:
+          - type: string
+          - type: string
+          - type: boolean
+          - type: integer
+    required:
+      - name
+    additionalProperties: false
+  Event:
+    title: Event
+    type: object
+    properties:
+      data:
+        type: object
+        additionalProperties: true
+      id:
+        type: string
+      ts:
+        type: string
+      type:
+        type: string
+      uids:
+        type: array
+        items:
+          $ref: "#/definitions/Uid"
+      v:
+        type: integer
+    required:
+      - data
+      - id
+      - ts
+      - type
+      - uids
+      - v
+    additionalProperties: false
+  FileInfo:
+    title: FileInfo
+    type: object
+    properties:
+      accessed-ts:
+        type: integer
+      changed-ts:
+        type: integer
+      group:
+        type: string
+      mode:
+        type: string
+      modified-ts:
+        type: integer
+      name:
+        type: string
+      size-b:
+        type: integer
+      target:
+        type: string
+      type:
+        type: string
+        enum: ["fifo", "dir", "socket", "unknown", "file", "symlink"]
+      user:
+        type: string
+    required:
+      - accessed-ts
+      - changed-ts
+      - group
+      - mode
+      - modified-ts
+      - name
+      - size-b
+      - type
+      - user
+    additionalProperties: false
+  GitCommitInfo:
+    title: GitCommitInfo
+    type: object
+    properties:
+      author:
+        type: object
+        properties:
+          date:
+            $ref: "#/definitions/Timestamp"
+          email:
+            type: string
+          name:
+            type: string
+        required:
+          - date
+          - email
+          - name
+        additionalProperties: false
+      committer:
+        type: object
+        properties:
+          date:
+            $ref: "#/definitions/Timestamp"
+          email:
+            type: string
+          name:
+            type: string
+        required:
+          - date
+          - email
+          - name
+        additionalProperties: false
+      id:
+        type: string
+        pattern: "^[0-9a-f]{40}$"
+      message:
+        type: string
+      parents:
+        type: array
+        items:
+          type: string
+      patches:
+        type: array
+        items:
+          type: object
+          properties:
+            +:
+              type: integer
+            -:
+              type: integer
+            patch:
+              type: string
+            path:
+              type: string
+          required:
+            - +
+            - -
+            - patch
+            - path
+          additionalProperties: false
+    required:
+      - author
+      - committer
+      - id
+      - message
+      - parents
+    additionalProperties: false
+  HttpResponse:
+    title: HttpResponse
+    type: object
+    properties:
+      body:
+        description: Response body.
+      connection-time:
+        type: integer
+      error:
+        description: Error information.
+      headers:
+        type: object
+        additionalProperties:
+          type: string
+      request-time:
+        type: integer
+      status:
+        type: integer
+    additionalProperties: false
+  Id:
+    title: Id
+    type: string
+    pattern: "^[a-z0-9_-]+$"
+  ImageBuildResult:
+    title: ImageBuildResult
+    type: object
+    properties:
+      digest:
+        type: string
+      metadata:
+        type: object
+        additionalProperties: true
+    required:
+      - digest
+      - metadata
+    additionalProperties: false
+  InputRequestResult:
+    title: InputRequestResult
+    type: object
+    properties:
+      by-user:
+        $ref: "#/definitions/UserRefObject"
+      data:
+        description: The provided input.
+    required:
+      - by-user
+      - data
+    additionalProperties: false
+  JobRef:
+    title: JobRef
+    type: string
+    pattern: "^[a-z0-9_-]+/[a-z0-9_-]+>[a-z0-9_-]+$"
+  JobSpec:
+    title: JobSpec
+    type: object
+    properties:
+      env:
+        type: string
+      id:
+        $ref: "#/definitions/Id"
+      info:
+        type: string
+      location:
+        $ref: "#/definitions/LocationRef"
+      modules:
+        type: array
+        items:
+          $ref: "#/definitions/ModuleSpec"
+      polytope-file:
+        type: object
+        properties:
+          path:
+            type: string
+          repo:
+            $ref: "#/definitions/RepoRef"
+        required:
+          - path
+          - repo
+        additionalProperties: false
+      project:
+        oneOf:
+          - $ref: "#/definitions/ProjectRef"
+          - $ref: "#/definitions/Uid"
+      repo-pins:
+        $ref: "#/definitions/RepoPins"
+      run:
+        oneOf:
+          - type: array
+            items:
+              oneOf:
+                - type: object
+                  properties:
+                    args:
+                      type: object
+                      additionalProperties: true
+                      patternProperties:
+                        "^[a-z0-9_-]+$": {}
+                    id:
+                      $ref: "#/definitions/Id"
+                    module:
+                      $ref: "#/definitions/ModuleRef"
+                    run-when:
+                      type: object
+                      properties:
+                        after:
+                          type: string
+                        after-condition:
+                          type: string
+                          enum: ["success", "always", "failed"]
+                      additionalProperties: false
+                  required:
+                    - module
+                  additionalProperties: false
+                - $ref: "#/definitions/ModuleRef"
+          - $ref: "#/definitions/TemplateRef"
+      tags:
+        type: array
+        items:
+          $ref: "#/definitions/Id"
+      visibility:
+        type: string
+        enum: ["project", "private", "public"]
+      volumes:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              $ref: "#/definitions/Id"
+            info:
+              type: string
+          required:
+            - id
+          additionalProperties: false
+    required:
+      - run
+    additionalProperties: false
+  JobSummary:
+    title: JobSummary
+    type: object
+    properties:
+      created-by:
+        type: object
+        properties:
+          job:
+            $ref: "#/definitions/JobRefObject"
+          project:
+            $ref: "#/definitions/ProjectRefObject"
+          step:
+            $ref: "#/definitions/StepRefObject"
+          user:
+            $ref: "#/definitions/UserRefObject"
+        additionalProperties: false
+      created-ts:
+        type: string
+      finished-ts:
+        type: string
+      id:
+        $ref: "#/definitions/Id"
+      info:
+        type: string
+      location:
+        $ref: "#/definitions/LocationRefObject"
+      modified-ts:
+        type: string
+      project:
+        $ref: "#/definitions/ProjectRefObject"
+      spec:
+        $ref: "#/definitions/JobSpec"
+      started-ts:
+        type: string
+      status:
+        type: string
+        enum: ["success", "stopping", "running", "starting", "deleting", "failed", "queued", "stopped", "canceled"]
+      submitted-spec:
+        $ref: "#/definitions/JobSpec"
+      uid:
+        $ref: "#/definitions/Uid"
+      visibility:
+        type: string
+        enum: ["project", "private", "public"]
+    required:
+      - created-by
+      - created-ts
+      - id
+      - location
+      - modified-ts
+      - project
+      - spec
+      - status
+      - submitted-spec
+      - uid
+      - visibility
+    additionalProperties: false
+  LocationRef:
+    title: LocationRef
+    type: string
+    description: Reference to a location, e.g., 'eu-north' or 'user:my-user>location:my-agent'.
+    pattern: "^(eu-north|(user|org):[a-z0-9_-]+>location:[a-z0-9_-]+)$"
+  ModuleDetails:
+    title: ModuleDetails
+    type: object
+    properties:
+      api-version:
+        type: string
+      args:
+        type: object
+        additionalProperties: true
+        patternProperties:
+          "^[a-z0-9_-]+$": {}
+      code:
+        $ref: "#/definitions/Code"
+      commit:
+        $ref: "#/definitions/GitCommitInfo"
+      default?:
+        type: boolean
+      id:
+        $ref: "#/definitions/Id"
+      info:
+        type: string
+      module:
+        $ref: "#/definitions/ModuleRef"
+      params:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              $ref: "#/definitions/Id"
+            info:
+              type: string
+            name:
+              type: string
+            type:
+              description: Parameter data type format.
+          required:
+            - id
+            - type
+          additionalProperties: false
+      repo:
+        $ref: "#/definitions/RepoRefObject"
+    required:
+      - commit
+      - default?
+      - id
+      - repo
+    additionalProperties: false
+  ModuleRef:
+    title: ModuleRef
+    type: string
+    pattern: "^[a-z0-9_-]+/[a-z0-9_-]+(@[a-zA-Z0-9_-]+)?(:[a-z0-9_-/]+)?(![a-z0-9_-]+)?$"
+  ModuleSpec:
+    title: ModuleSpec
+    type: object
+    properties:
+      api-version:
+        type: string
+      args:
+        type: object
+        additionalProperties: true
+        patternProperties:
+          "^[a-z0-9_-]+$": {}
+      code:
+        $ref: "#/definitions/Code"
+      default?:
+        type: boolean
+      id:
+        $ref: "#/definitions/Id"
+      info:
+        type: string
+      module:
+        $ref: "#/definitions/ModuleRef"
+      params:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              $ref: "#/definitions/Id"
+            info:
+              type: string
+            name:
+              type: string
+            type:
+              description: Parameter data type format.
+          required:
+            - id
+            - type
+          additionalProperties: false
+    oneOf:
+      - required: [code]
+      - required: [module]
+    required:
+      - id
+    additionalProperties: false
+  ModuleSummary:
+    title: ModuleSummary
+    type: object
+    properties:
+      default?:
+        type: boolean
+      id:
+        $ref: "#/definitions/Id"
+      info:
+        type: string
+      repo:
+        $ref: "#/definitions/RepoRefObject"
+    required:
+      - default?
+      - id
+      - repo
+    additionalProperties: false
+  MountSourceSpec:
+    title: MountSourceSpec
+    oneOf:
+      - type: object
+        properties:
+          dataset:
+            oneOf:
+              - $ref: "#/definitions/DatasetRef"
+              - $ref: "#/definitions/Uid"
+          path:
+            type: string
+          type:
+            type: string
+            const: "dataset"
+          version:
+            type: integer
+        required:
+          - dataset
+          - type
+        additionalProperties: false
+      - type: object
+        properties:
+          path:
+            type: string
+          type:
+            type: string
+            const: "host"
+        required:
+          - path
+          - type
+        additionalProperties: false
+      - type: object
+        properties:
+          path:
+            type: string
+          repo:
+            oneOf:
+              - $ref: "#/definitions/RepoRef"
+              - $ref: "#/definitions/Uid"
+          revision:
+            type: string
+          type:
+            type: string
+            const: "repo"
+        required:
+          - type
+        additionalProperties: false
+      - type: object
+        properties:
+          data:
+            type: string
+          type:
+            type: string
+            const: "string"
+        required:
+          - data
+          - type
+        additionalProperties: false
+      - type: object
+        properties:
+          create:
+            type: string
+            enum: ["never", "when-missing", "always"]
+          id:
+            $ref: "#/definitions/Id"
+          scope:
+            type: string
+            enum: ["project", "job"]
+          source:
+            $ref: "#/definitions/MountSourceSpec"
+          type:
+            type: string
+            const: "volume"
+        required:
+          - type
+        additionalProperties: false
+  PaginationStatsSpec:
+    title: PaginationStatsSpec
+    type: string
+    description: Comma-separated keywords like 'has-after,count-before,total'.
+    pattern: "^(has-after|has-before|count-after|count-before|total)(,(has-after|has-before|count-after|count-before|total))*$"
+  PolytopeFile:
+    title: PolytopeFile
+    type: object
+    properties:
+      modules:
+        type: array
+        items:
+          $ref: "#/definitions/ModuleSpec"
+      templates:
+        type: array
+        items:
+          $ref: "#/definitions/TemplateSpec"
+      triggers:
+        type: array
+        items:
+          $ref: "#/definitions/TriggerSpec"
+    additionalProperties: false
+  ProjectRef:
+    title: ProjectRef
+    type: string
+    pattern: "^[a-z0-9_-]+/[a-z0-9_-]+$"
+  RepoPins:
+    title: RepoPins
+    type: object
+    additionalProperties:
+      type: object
+      properties:
+        default:
+          type: string
+        revisions:
+          type: object
+          additionalProperties:
+            type: string
+      additionalProperties: false
+  RepoRef:
+    title: RepoRef
+    type: string
+    pattern: "^[a-z0-9_-]+/[a-z0-9_-]+(/[a-z0-9_-]+)?$"
+  ServicePortsSpec:
+    title: ServicePortsSpec
+    oneOf:
+      - type: object  # Single port
+        properties:
+          expose-as:
+            type: integer
+          internal:
+            type: boolean
+          label:
+            $ref: "#/definitions/Id"
+          port:
+            type: integer
+          protocol:
+            type: string
+            enum: ["tcp", "udp", "http", "https"]
+        required:
+          - port
+          - protocol
+        additionalProperties: false
+      - type: object  # Port range
+        properties:
+          expose-as:
+            type: string
+          internal:
+            type: boolean
+          label:
+            $ref: "#/definitions/Id"
+          protocol:
+            type: string
+            enum: ["tcp", "udp", "http", "https"]
+          range:
+            type: string
+        required:
+          - protocol
+          - range
+        additionalProperties: false
+  ServiceRef:
+    title: ServiceRef
+    type: string
+    description: Reference to a service, e.g., 'my-service' or 'my-org/my-project>my-job#my-step:my-service'.
+    pattern: "^[a-z0-9_-]+(>[a-z0-9_-]+#[a-z0-9_-]+:[a-z0-9_-]+)?$"
+  ServiceSpec:
+    title: ServiceSpec
+    type: object
+    properties:
+      id:
+        $ref: "#/definitions/Id"
+      ports:
+        type: array
+        items:
+          $ref: "#/definitions/ServicePortsSpec"
+    required:
+      - id
+      - ports
+    additionalProperties: false
+  ServiceSummary:
+    title: ServiceSummary
+    type: object
+    properties:
+      created-by:
+        type: object
+        properties:
+          job:
+            $ref: "#/definitions/JobRefObject"
+          project:
+            $ref: "#/definitions/ProjectRefObject"
+          step:
+            $ref: "#/definitions/StepRefObject"
+          user:
+            $ref: "#/definitions/UserRefObject"
+        additionalProperties: false
+      created-ts:
+        type: string
+      host:
+        type: string
+      id:
+        $ref: "#/definitions/Id"
+      info:
+        type: string
+      job:
+        $ref: "#/definitions/JobRefObject"
+      location:
+        $ref: "#/definitions/LocationRefObject"
+      modified-ts:
+        type: string
+      ports:
+        type: array
+        items:
+          type: object
+          properties:
+            exposed-as:
+              type: object
+              properties:
+                port:
+                  type: integer
+                requested:
+                  type: integer
+              additionalProperties: false
+            label:
+              $ref: "#/definitions/Id"
+            port:
+              type: integer
+            protocol:
+              type: string
+              enum: ["tcp", "udp", "http", "https"]
+          required:
+            - port
+            - protocol
+          additionalProperties: false
+      proxy-key:
+        type: string
+      started-ts:
+        type: string
+      status:
+        type: string
+        enum: ["stopping", "running", "stopped", "pending"]
+      stopped-ts:
+        type: string
+      uid:
+        $ref: "#/definitions/Uid"
+    required:
+      - created-by
+      - created-ts
+      - id
+      - job
+      - location
+      - modified-ts
+      - ports
+      - status
+      - uid
+    additionalProperties: false
+  StepRef:
+    title: StepRef
+    type: string
+    description: Reference to a step, e.g., 'my-step' or 'my-org/my-project>my-job#my-step'.
+    pattern: "^[a-z0-9_-]+(>[a-z0-9_-]+#[a-z0-9_-]+)?$"
+  StepSummary:
+    title: StepSummary
+    type: object
+    properties:
+      created-by:
+        type: object
+        properties:
+          job:
+            $ref: "#/definitions/JobRefObject"
+          project:
+            $ref: "#/definitions/ProjectRefObject"
+          step:
+            $ref: "#/definitions/StepRefObject"
+          user:
+            $ref: "#/definitions/UserRefObject"
+        additionalProperties: false
+      created-ts:
+        type: string
+      finished-ts:
+        type: string
+      id:
+        $ref: "#/definitions/Id"
+      info:
+        type: string
+      job:
+        $ref: "#/definitions/JobRefObject"
+      modified-ts:
+        type: string
+      spec:
+        type: object
+        properties:
+          args:
+            type: object
+            additionalProperties: true
+            patternProperties:
+              "^[a-z0-9_-]+$": {}
+          id:
+            $ref: "#/definitions/Id"
+          module:
+            $ref: "#/definitions/ModuleRef"
+          run-when:
+            type: object
+            properties:
+              after:
+                type: string
+              after-condition:
+                type: string
+                enum: ["success", "always", "failed"]
+            additionalProperties: false
+        required:
+          - module
+        additionalProperties: false
+      started-ts:
+        type: string
+      status:
+        type: string
+        enum: ["success", "stopping", "running", "starting", "deleting", "failed", "queued", "stopped", "canceled"]
+      submitted-spec:
+        type: object
+        properties:
+          args:
+            type: object
+            additionalProperties: true
+            patternProperties:
+              "^[a-z0-9_-]+$": {}
+          id:
+            $ref: "#/definitions/Id"
+          module:
+            $ref: "#/definitions/ModuleRef"
+          run-when:
+            type: object
+            properties:
+              after:
+                type: string
+              after-condition:
+                type: string
+                enum: ["success", "always", "failed"]
+            additionalProperties: false
+        required:
+          - module
+        additionalProperties: false
+      uid:
+        $ref: "#/definitions/Uid"
+    required:
+      - created-by
+      - created-ts
+      - id
+      - job
+      - modified-ts
+      - spec
+      - status
+      - uid
+    additionalProperties: false
+  TemplateDetails:
+    title: TemplateDetails
+    type: object
+    properties:
+      commit:
+        $ref: "#/definitions/GitCommitInfo"
+      id:
+        $ref: "#/definitions/Id"
+      info:
+        type: string
+      repo:
+        $ref: "#/definitions/RepoRefObject"
+      run:
+        type: array
+        items:
+          oneOf:
+            - type: object
+              properties:
+                args:
+                  type: object
+                  additionalProperties: true
+                  patternProperties:
+                    "^[a-z0-9_-]+$": {}
+                id:
+                  $ref: "#/definitions/Id"
+                module:
+                  $ref: "#/definitions/ModuleRef"
+                run-when:
+                  type: object
+                  properties:
+                    after:
+                      type: string
+                    after-condition:
+                      type: string
+                      enum: ["success", "always", "failed"]
+                  additionalProperties: false
+              required:
+                - module
+              additionalProperties: false
+            - $ref: "#/definitions/ModuleRef"
+    required:
+      - commit
+      - id
+      - repo
+      - run
+    additionalProperties: false
+  TemplateRef:
+    title: TemplateRef
+    type: string
+    pattern: "^[a-z0-9_-]+/[a-z0-9_-]+(@[a-zA-Z0-9_-]+)?(:[a-z0-9_-/]+)?(![a-z0-9_-]+)?$"
+  TemplateSpec:
+    title: TemplateSpec
+    type: object
+    properties:
+      id:
+        $ref: "#/definitions/Id"
+      info:
+        type: string
+      run:
+        type: array
+        items:
+          oneOf:
+            - type: object
+              properties:
+                args:
+                  type: object
+                  additionalProperties: true
+                  patternProperties:
+                    "^[a-z0-9_-]+$": {}
+                id:
+                  $ref: "#/definitions/Id"
+                module:
+                  $ref: "#/definitions/ModuleRef"
+                run-when:
+                  type: object
+                  properties:
+                    after:
+                      type: string
+                    after-condition:
+                      type: string
+                      enum: ["success", "always", "failed"]
+                  additionalProperties: false
+              required:
+                - module
+              additionalProperties: false
+            - $ref: "#/definitions/ModuleRef"
+    required:
+      - id
+      - run
+    additionalProperties: false
+  TemplateSummary:
+    title: TemplateSummary
+    type: object
+    properties:
+      id:
+        $ref: "#/definitions/Id"
+      info:
+        type: string
+      repo:
+        $ref: "#/definitions/RepoRefObject"
+    required:
+      - id
+      - repo
+    additionalProperties: false
+  Timestamp:
+    title: Timestamp
+    type: string
+    pattern: "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?$"
+  TriggerEventType:
+    title: TriggerEventType
+    type: string
+    enum:
+      - issue-created
+      - git-tag-added
+      - issue-deleted
+      - git-tag-deleted
+      - git-branch-updated
+      - git-branch-added
+      - issue-modified
+      - pr-deleted
+      - git-branch-deleted
+      - pr-modified
+      - git-tag-updated
+      - pr-created
+  TriggerOnSpec:
+    title: TriggerOnSpec
+    type: object
+    properties:
+      events:
+        type: array
+        items:
+          $ref: "#/definitions/TriggerEventType"
+      schedule:
+        $ref: "#/definitions/CronExpr"
+      when:
+        $ref: "#/definitions/Code"
+    additionalProperties: false
+  TriggerSpec:
+    title: TriggerSpec
+    type: object
+    properties:
+      id:
+        $ref: "#/definitions/Id"
+      info:
+        type: string
+      on:
+        type: array
+        items:
+          $ref: "#/definitions/TriggerOnSpec"
+      template:
+        oneOf:
+          - $ref: "#/definitions/Id"
+          - $ref: "#/definitions/TemplateSpec"
+          - $ref: "#/definitions/Code"
+    required:
+      - id
+      - on
+      - template
+    additionalProperties: false
+  Uid:
+    title: Uid
+    type: string
+    pattern: "^[0-9a-f]{16}$"
+  # Helper definitions for repeated ref objects
+  JobRefObject:
+    type: object
+    properties:
+      id:
+        $ref: "#/definitions/Id"
+      project:
+        $ref: "#/definitions/ProjectRefObject"
+      uid:
+        $ref: "#/definitions/Uid"
+    required:
+      - id
+      - project
+      - uid
+    additionalProperties: false
+  ProjectRefObject:
+    type: object
+    properties:
+      id:
+        $ref: "#/definitions/Id"
+      owner:
+        type: object
+        properties:
+          id:
+            $ref: "#/definitions/Id"
+          type:
+            type: string
+            enum: ["user", "org"]
+          uid:
+            $ref: "#/definitions/Uid"
+        required:
+          - id
+          - type
+          - uid
+        additionalProperties: false
+      uid:
+        $ref: "#/definitions/Uid"
+    required:
+      - id
+      - owner
+      - uid
+    additionalProperties: false
+  StepRefObject:
+    type: object
+    properties:
+      id:
+        $ref: "#/definitions/Id"
+      job:
+        $ref: "#/definitions/JobRefObject"
+      uid:
+        $ref: "#/definitions/Uid"
+    required:
+      - id
+      - job
+      - uid
+    additionalProperties: false
+  UserRefObject:
+    type: object
+    properties:
+      id:
+        $ref: "#/definitions/Id"
+      uid:
+        $ref: "#/definitions/Uid"
+    required:
+      - id
+      - uid
+    additionalProperties: false
+  LocationRefObject:
+    type: object
+    properties:
+      id:
+        $ref: "#/definitions/Id"
+      org:
+        type: object
+        properties:
+          id:
+            $ref: "#/definitions/Id"
+          uid:
+            $ref: "#/definitions/Uid"
+        required:
+          - id
+          - uid
+        additionalProperties: false
+      project:
+        $ref: "#/definitions/ProjectRefObject"
+      uid:
+        $ref: "#/definitions/Uid"
+      user:
+        $ref: "#/definitions/UserRefObject"
+    required:
+      - id
+      - uid
+    additionalProperties: false
+  RepoRefObject:
+    type: object
+    properties:
+      default?:
+        type: boolean
+      id:
+        $ref: "#/definitions/Id"
+      project:
+        $ref: "#/definitions/ProjectRefObject"
+      uid:
+        $ref: "#/definitions/Uid"
+    required:
+      - default?
+      - id
+      - project
+      - uid
+    additionalProperties: false

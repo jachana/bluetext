@@ -1,138 +1,165 @@
-# Full Stack React + Python API on Polytope
+# User Management Stack
 
-This is a full stack application with a React frontend and Python API backend configured to run on the Polytope platform.
+A full-stack application built with React, FastAPI, and Couchbase, designed to run on Polytope.
 
-## Project Structure
+## Architecture
 
-```
-.
-├── polytope.yml          # Polytope configuration file
-├── frontend/             # React application directory
-│   ├── bin/
-│   │   ├── run           # Executable script to start the app
-│   │   └── init          # Executable script to install dependencies
-│   ├── public/
-│   │   └── index.html    # HTML template
-│   ├── src/
-│   │   ├── App.js        # Main React component
-│   │   ├── App.css       # App styles
-│   │   ├── index.js      # React entry point
-│   │   └── index.css     # Global styles
-│   └── package.json      # Node.js dependencies
-├── api/                  # Python API server directory
-│   ├── bin/
-│   │   └── run           # Executable script to start the API
-│   ├── app.py            # FastAPI application
-│   └── requirements.txt  # Python dependencies
-└── README.md             # This file
-```
+This stack consists of three main components:
 
-## How to Run
+### Frontend (React)
+- **Port**: 3000 (configurable via `frontend_port` value)
+- **Technology**: React 18 with modern hooks
+- **Features**: 
+  - User creation form with first_name and age fields
+  - User listing with delete functionality
+  - Responsive design with modern UI
+  - Real-time updates after operations
 
-### Using Polytope
+### API (FastAPI)
+- **Port**: 4000 (configurable via `api_port` value)
+- **Technology**: Python FastAPI with async support
+- **Features**:
+  - RESTful API for user management
+  - CORS enabled for frontend communication
+  - Automatic API documentation at `/docs`
+  - Health check endpoint at `/health`
+  - Full CRUD operations for users
 
-1. Make sure you have Polytope CLI installed and configured
-2. Run the full stack application:
+### Database (Couchbase)
+- **Technology**: Couchbase Server Community Edition
+- **Collections**: Users stored in `_default.users` collection
+- **Features**:
+  - Document-based NoSQL storage
+  - Automatic initialization and setup
+  - Fault-tolerant connection handling
+
+## Quick Start
+
+1. **Set up values and secrets**:
+   ```bash
+   ./.values_and_secrets.defaults.sh
+   ```
+
+2. **Run the stack**:
    ```bash
    pt run stack
    ```
-   Or run only the API server:
-   ```bash
-   pt run api-only
-   ```
 
-3. The React app will be available at port 3000 and the Python API at port 5000
+3. **Access the application**:
+   - Frontend: http://localhost:3000
+   - API Documentation: http://localhost:4000/docs
+   - API Health Check: http://localhost:4000/health
 
-### What the App Does
+## Configuration
 
-**Frontend (React):**
-- Displays a "Hello World!" message
-- Shows information about the React app running on Polytope
-- Lists the key features of the setup
-- Includes responsive design for mobile devices
+The application uses Polytope values and secrets for configuration:
 
-**Backend (Python API):**
-- FastAPI-based REST API with automatic OpenAPI documentation
-- Provides a `/date` endpoint that returns the current date and time
-- Includes a `/health` endpoint for health checks
-- Returns JSON responses with multiple date formats
-- Interactive API documentation available at `/docs`
+### Values
+- `frontend_port`: Port for the React frontend (default: 3000)
+- `api_port`: Port for the FastAPI backend (default: 4000)
+- `api_protocol`: Protocol for API communication (default: http)
+- `api_host`: Hostname for API (default: api)
+- `couchbase_host`: Couchbase server hostname (default: couchbase)
+- `couchbase_bucket_name`: Main bucket name (default: main)
+- `couchbase_tls`: Enable TLS for Couchbase (default: false)
 
-### API Endpoints
-
-- `GET /date` - Returns current date and time in multiple formats:
-  ```json
-  {
-    "date": "2025-01-07T15:30:00.123456",
-    "timestamp": 1704639000.123456,
-    "formatted_date": "2025-01-07 15:30:00"
-  }
-  ```
-- `GET /health` - Health check endpoint:
-  ```json
-  {
-    "status": "healthy",
-    "service": "date-api"
-  }
-  ```
-
-## Polytope Configuration
-
-The `polytope.yml` file defines:
-
-- **Frontend Module**: Uses the `polytope/node` module to run the React app
-- **API Module**: Uses the `polytope/python` module to run the FastAPI API
-- **Templates**: 
-  - `stack` - Runs both frontend and API modules
-  - `api-only` - Runs only the API module
-- **Features**:
-  - Node.js 22 and Python 3.11 runtimes
-  - Volume mounts for dependency caching
-  - Hot reloading support
-  - Service exposure on ports 3000 and 5000
-  - Automatic restart policy
+### Secrets
+- `couchbase_username`: Couchbase admin username
+- `couchbase_password`: Couchbase admin password
 
 ## Development
 
-The app is configured with:
-- React 18
-- React Scripts for development server
-- Hot reloading enabled
-- Dependency caching for faster builds
-- Proper error handling and logging
-
-## Key Features
-
-- ✅ **Full Stack**: React frontend + Python FastAPI backend
-- ✅ **React 18**: Latest React version with modern features
-- ✅ **FastAPI**: Modern Python web framework with automatic API docs
-- ✅ **Python 3.11**: Modern Python runtime with async support
-- ✅ **Hot Reloading**: Changes are reflected immediately
-- ✅ **Docker Containers**: Runs in isolated environments
-- ✅ **Polytope Integration**: Full platform integration
-- ✅ **Volume Caching**: Fast dependency installation
-- ✅ **Responsive Design**: Works on mobile and desktop
-- ✅ **RESTful API**: Clean JSON API endpoints with OpenAPI docs
-- ✅ **Health Checks**: Built-in monitoring endpoints
-- ✅ **Interactive Docs**: Automatic Swagger UI at `/docs`
-
-## Customization
-
-To modify the app:
-
-**Frontend:**
-1. Edit files in the `frontend/src/` directory
-2. The changes will be automatically reflected due to hot reloading
-3. Add new dependencies to `frontend/package.json`
-
-**Backend:**
-1. Edit files in the `api/` directory
-2. Add new endpoints to `api/app.py`
-3. Add new dependencies to `api/requirements.txt`
-
-**Restart if needed:**
-```bash
-pt run stack
+### Project Structure
+```
+├── polytope.yml                 # Polytope configuration
+├── conf/
+│   └── couchbase/
+│       └── data_structure.yml   # Couchbase collections setup
+├── src/
+│   ├── frontend/                # React application
+│   │   ├── bin/run              # Frontend startup script
+│   │   ├── package.json         # Node.js dependencies
+│   │   ├── src/                 # React source code
+│   │   └── public/              # Static assets
+│   ├── api/                     # FastAPI application
+│   │   ├── bin/run              # API startup script
+│   │   ├── requirements.txt     # Python dependencies
+│   │   └── src/main.py          # FastAPI application
+│   └── couchbase-init/          # Couchbase initialization
+│       ├── bin/run              # Init script
+│       ├── requirements.txt     # Python dependencies
+│       └── src/                 # Initialization code
+└── .values_and_secrets.defaults.sh  # Default configuration
 ```
 
-Enjoy building full stack applications with React and Python on Polytope! 🚀
+### API Endpoints
+
+- `GET /` - API status
+- `GET /health` - Health check
+- `GET /users` - List all users
+- `POST /users` - Create a new user
+- `GET /users/{user_id}` - Get specific user
+- `DELETE /users/{user_id}` - Delete user
+
+### User Data Model
+
+```json
+{
+  "id": "uuid",
+  "first_name": "string",
+  "age": "integer",
+  "created_at": "datetime"
+}
+```
+
+## Production Deployment
+
+For production deployment:
+
+1. Update secrets with real values:
+   ```bash
+   pt secret set couchbase_username <your-username>
+   pt secret set couchbase_password <your-password>
+   ```
+
+2. Configure appropriate values for your environment:
+   ```bash
+   pt value set api_host <your-api-host>
+   pt value set couchbase_host <your-couchbase-host>
+   ```
+
+3. Consider enabling TLS:
+   ```bash
+   pt value set couchbase_tls "true"
+   pt value set api_protocol "https"
+   ```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Couchbase connection failures**: 
+   - The API includes retry logic for Couchbase connections
+   - Couchbase initialization can take up to 10 minutes on first run
+   - Check the couchbase-init logs for initialization progress
+
+2. **Frontend can't connect to API**:
+   - Verify API is running on the expected port
+   - Check CORS configuration in the API
+   - Ensure environment variables are set correctly
+
+3. **Users not persisting**:
+   - Verify Couchbase collections are created properly
+   - Check the data_structure.yml configuration
+   - Ensure the API has proper permissions to write to Couchbase
+
+### Logs
+
+Check individual component logs using Polytope:
+```bash
+pt logs <job-id> <step-id>
+```
+
+## License
+
+This project is provided as an example for Polytope stack development.

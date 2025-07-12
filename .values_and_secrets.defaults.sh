@@ -1,17 +1,31 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Set all Polytope values and secrets for the application
+# Default values and secrets for the Polytope stack
+# Execute this script to set default values for development
 
-# Frontend configuration (non-secret values)
-pt values set frontend_port 3000
-pt values set api_port 5000
+echo "Setting default Polytope values and secrets..."
 
 # Couchbase configuration
-pt values set couchbase_host couchbase
-pt values set couchbase_bucket_name main
+pt value set couchbase_host "couchbase"
+pt value set couchbase_port "8091"
+pt value set couchbase_ssl_port "18091"
+pt value set couchbase_bucket_name "main"
+pt value set couchbase_tls "false"
+pt value set couchbase_type "server"
 
-# Couchbase secrets (sensitive information)
-pt secrets set couchbase_username admin
-pt secrets set couchbase_password password
+# API configuration
+pt value set api_protocol "http"
+pt value set api_host "api"
+pt value set api_port "4000"
 
-echo "All Polytope values and secrets have been set successfully!"
+# Frontend configuration
+pt value set frontend_port "3000"
+
+# Secrets (use default values for development)
+pt secret set couchbase_username "admin"
+pt secret set couchbase_password "password"
+
+echo "✔ Default values and secrets have been set."
+echo "For production, update the secrets with real values:"
+echo "  pt secret set couchbase_username <your-username>"
+echo "  pt secret set couchbase_password <your-password>"

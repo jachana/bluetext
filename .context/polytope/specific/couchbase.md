@@ -1,7 +1,34 @@
-# Documentation on how to create a Couchbase init app
+# Documentation on how to use Couchbase in Polytope
 
-## Add the following code to the polytope.yml file
+## Latest docker image
+Use the latest Couchbase server image: "couchbase:enterprise-7.6.6"
 
+## Needs to be initialized before use
+Couchbase needs to be initialized. This can be done by running the Couchbase init app. Include the Couchbase init app in the template that runs the Coachbase module.
+
+It can take up to 10 minutes for Couchbase to be initialized on the first run
+depending on the machine it is running on. Code that depends on Couchbase being up
+and running therefore needs to have long connection retry periods.
+
+## Testing that the connection is working
+Python: bucket.ping()
+
+## Cache the connection
+Cache the connection to Couchbase so you don't need to reestabilish it for each action. 
+
+No need to cache the scope or collection. 
+
+## How to store data in Couchbase
+Document id: the document id is stored as the key to the document. No need to include it in the document itself.
+
+Document type: this is determined by which collection the document is stored in. No need to include it in the document itself.
+
+Documents are stored in collections. Ensure that you are storing each document in the correct collection. 
+
+## Instructions for setting up the Couchbase init app
+When running a couchbase module you also need to run this couchbase-init module. 
+
+### Add the following code to the polytope.yml file
 <code type="yaml">
 modules:
   ...
@@ -25,7 +52,7 @@ modules:
 
 </code>
 
-## Create the following executable file
+### Create the following executable file
 
 <file path="./util/couchbase-init/bin/run" mod="x">
 #!/usr/bin/env bash
@@ -46,7 +73,7 @@ cd "$ROOT"
 exec python src/main.py "$@"
 </file>
 
-## Create the following executable file
+### Create the following executable file
 
 <file path="./util/couchbase-init/bin/lib/pip_install" mod="x">
 #!/usr/bin/env bash
@@ -60,17 +87,18 @@ exec python src/main.py "$@"
 )
 </file>
 
-## Create the following file
+### Create the following file
 
 <file path="./util/couchbase-init/requirements.txt">
 couchbase==4.3.2
 </file>
 
-## Create the following file
+### Create the following file
 
 <file path="./util/couchbase-init/src/main.py">
 import os
 import sys
+import yaml
 from controllers.controller_cluster import ControllerCluster
 from controllers.controller_bucket import ControllerBucket
 from controllers.controller_data_structure import ControllerDataStructure
@@ -91,7 +119,16 @@ COUCHBASE_TLS = get_env_var('COUCHBASE_TLS', 'false').lower() == 'true'
 COUCHBASE_MAIN_BUCKET_NAME = get_env_var('COUCHBASE_MAIN_BUCKET_NAME')
 COUCHBASE_TYPE = get_env_var('COUCHBASE_TYPE', 'server')
 
-data_structure_spec = {"_default": ["chats", "chat_messages"]}
+def load_data_structure_spec():
+    """Load data structure specification from YAML file"""
+    config_path = "/app/conf/data_structure.yml"
+    try:
+        with open(config_path, 'r') as file:
+            return yaml.safe_load(file)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Data structure configuration file not found at {config_path}")
+    except yaml.YAMLError as e:
+        raise ValueError(f"Error parsing YAML configuration: {e}")
 
 def main():
     controller_cluster = ControllerCluster(COUCHBASE_HOST, COUCHBASE_USERNAME, COUCHBASE_PASSWORD, COUCHBASE_TLS, COUCHBASE_TYPE)
@@ -103,6 +140,7 @@ def main():
         bucket = controller_bucket.ensure_created(COUCHBASE_MAIN_BUCKET_NAME)
 
         controller_data_structure = ControllerDataStructure(bucket)
+        data_structure_spec = load_data_structure_spec()
         controller_data_structure.create(data_structure_spec)
     finally:
         cluster.close()
@@ -110,10 +148,16 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 </file>
 
-## Create the following file
+### Create the following config file
+
+<file path="./conf/couchbase/data_structures.yml" />
+
+This file should specify the scopes and collections that should be exist in the Couchbase server. 
+
+
+### Create the following file
 
 <file path="./util/couchbase-init/src/controllers/controller_bucket.py">
 import time
@@ -162,7 +206,7 @@ class ControllerBucket:
                 time.sleep(retry_interval)
 </file>
 
-## Create the following file
+### Create the following file
 
 <file path="./util/couchbase-init/src/controllers/controller_cluster.py">
 import time
@@ -264,7 +308,7 @@ class ControllerCluster:
 
                 time.sleep(retry_interval)</file>
 
-## Create the following file
+### Create the following file
 
 <file path="./util/couchbase-init/src/controllers/controller_data_structure.py">
 from couchbase.management.collections import CreateCollectionSettings

@@ -1,5 +1,2 @@
-# Couchbase data structure specification
-# This defines the collections to be created in each scope
-
 _default:
   - users

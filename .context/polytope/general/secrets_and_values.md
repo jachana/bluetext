@@ -25,7 +25,6 @@ COMMAND OPTIONS
   -f, --file=<path>                Reads a secret specification from a YAML/JSON/EDN file.
   -o, --output=<(yaml|json|edn)>   Selects output format [default: yaml].
       --pretty                     Pretty-prints output when supported [default: true].
-      --spec=<>                    A a secret specification in YAML/JSON/EDN format.
       --stdin                      If selected, reads a secret specification in YAML/JSON/EDN format from stdin.
 
 GLOBAL OPTIONS
@@ -93,16 +92,12 @@ modules:
             - { name: API_PORT, value: "#pt-value api_port" }
 
         
-## Environment dependent variables
-Variables that may change between environments should be stored as Polytope values or secrets. 
-
 ## Sample executable file with default values and secrets
 
-Store all default values and secrets in an executable file `.values_and_secrets.defaults.sh`. This file should contain set commands for all values and secrets that are
-referenced in the polytope.yml file with default values. 
+Store all default values and secrets in an executable file `.values_and_secrets.defaults.sh`. This file should contain 
+set commands for all values and secrets that are referenced in the polytope.yml file with default values. 
 
 This enables the user to execute that file to set all values and secrets when initializing the project on a new machine. 
 
 Make sure the .secrets_and_values.sh file pattern is added to the .gitignore file, so the user can store real secrets and local variables that should not be checked in in that file.
 
-#pt-value doesn't work currently in the polytope.yml file, so store all values as secrets instead. 

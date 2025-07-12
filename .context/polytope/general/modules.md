@@ -145,16 +145,6 @@ Runs a Couchbase container.
 Module: polytope/container  
 Args: {:image (:image params), :id (:id params), :services (or (:services params) [{:id :couchbase, :ports [{:port 4369, :protocol :tcp, :label :epmd, :internal true} {:port 8091, :protocol :http, :label :http} {:port 8092, :protocol :http, :label :capi} {:port 8093, :protocol :http, :label :query} {:port 8094, :protocol :http, :label :fts} {:port 8095, :protocol :http, :label :cbas} {:port 8096, :protocol :http, :label :eventing} {:port 8097, :protocol :http, :label :backup} {:range "9100-9105", :protocol :tcp, :label :indexer, :internal true} {:range "9110-9122", :protocol :tcp, :label :analytics, :internal true} {:port 9123, :protocol :tcp, :label :prometheus} {:port 9124, :protocol :tcp, :label :backup-grpc, :internal true} {:port 9130, :protocol :tcp, :label :fts-grpc, :internal true} {:port 9140, :protocol :tcp, :label :eventing-debug, :internal true} {:port 9999, :protocol :tcp, :label :indexer, :internal true} {:port 11207, :protocol :tcp, :label :memcached-ssl} {:range "11209-11210", :protocol :tcp, :label :memcached} {:port 11280, :protocol :tcp, :label :memcached-prometheus} {:port 21100, :protocol :tcp, :label :cluster-management, :internal true} {:port 21150, :protocol :tcp, :label :cluster-management, :internal true} {:port 18091, :protocol :http, :label :http-ssl} {:port 18092, :protocol :http, :label :capi-ssl} {:port 18093, :protocol :http, :label :query-ssl} {:port 18094, :protocol :http, :label :fts-ssl} {:port 18095, :protocol :http, :label :cbas-ssl} {:port 18096, :protocol :http, :label :eventing-ssl} {:port 18097, :protocol :http, :label :backup-ssl}]}]), :cmd (when-let [c (:cmd params)] (if (string? c) c (remove nil? c))), :mounts (concat (when-let [v (:data-volume params)] [{:path "/opt/couchbase/var", :source v}]) (:mounts params)), :restart (:restart params)}
 
-### Best practices
-
-Couchbase needs to be initialized. This can be done by running the Couchbase init app. Include the Couchbase init app in the template that runs the Coachbase module.
-
-Use the latest Couchbase server image: "couchbase:enterprise-7.6.6"
-
-<code type="python">
-
-</code>
-
 ## cli
 Runs the Couchbase CLI
 
@@ -171,102 +161,6 @@ Runs the Couchbase CLI
 
 Module: couchbase  
 Args: {:image (:image params), :id "couchbase-cli", :cmd (let [c (:cmd params)] (if (string? c) ["couchbase-cli" c] (into ["couchbase-cli"] c))), :restart (when-let [n (:retries params)] {:policy "on-failure", :max-restarts n}), :services []}
-
-## init-cluster
-Initializes a new cluster
-
-### Parameters
-- **image** (The container image to use.)  
-  Name: Image  
-  Type: [:default :str "public.ecr.aws/docker/library/couchbase:community-7.2.4"]
-- **cluster** (The cluster URL to connect to.)  
-  Name: Cluster  
-  Type: :str
-- **username** (The cluster username to use.)  
-  Name: Username  
-  Type: :str
-- **password** (The cluster password to use.)  
-  Name: Password  
-  Type: :str
-- **services** (Services to expose.)  
-  Name: Services  
-  Type: [:default [:str] ["data" "index" "query"]]
-- **ram** (Sets the RAM quota in MB for the data service of the cluster.)  
-  Name: Cluster RAM size  
-  Type: [:default :int 256]
-- **index-ram** (Sets the RAM quota in MB for the index service of the cluster.)  
-  Name: Index RAM size  
-  Type: [:default :int 256]
-- **eventing-ram** (Sets the RAM quota in MB for the eventing service of the cluster.)  
-  Name: Eventing RAM size  
-  Type: [:default :int 256]
-- **fts-ram** (Sets the RAM quota in MB for the full-text search (FTS) service of the cluster.)  
-  Name: FTS RAM size  
-  Type: [:default :int 256]
-- **retries** (Number of times to retry on failure.)  
-  Name: Retries  
-  Type: [:maybe :int]
-
-Module: couchbase  
-Args: {:image (:image params), :id "init-couchbase-cluster", :cmd (let [svc (set (:services params))] ["sh" "-c" (str "output=$(" (clojure.string/join " " ["couchbase-cli" "cluster-init" (str "--cluster=" (:cluster params)) (str "--cluster-username=" (:username params)) (str "--cluster-password=" (:password params)) (str "--services=" (clojure.string/join "," svc)) (when (svc "data") (str "--cluster-ramsize=" (:ram params))) (when (svc "index") (str "--cluster-index-ramsize=" (:index-ram params))) (when (svc "eventing") (str "--cluster-eventing-ramsize=" (:eventing-ram params))) (when (svc "fts") (str "--cluster-fts-ramsize=" (:eventing-ram params)))]) ") && echo \"$output\" || (echo \"$output\" | grep -q 'already initialized' && echo \"$output\" && exit 0 || echo \"$output\" && exit 1)")]), :restart (when-let [n (:retries params)] {:policy "on-failure", :max-restarts n}), :services []}
-
-## create-bucket
-Creates a bucket.
-
-### Parameters
-- **image** (The container image to use.)  
-  Name: Image  
-  Type: [:default :str "public.ecr.aws/docker/library/couchbase:community-7.2.4"]
-- **cluster** (The cluster URL to connect to.)  
-  Name: Cluster  
-  Type: :str
-- **username** (Couchbase user.)  
-  Name: Username  
-  Type: :str
-- **password** (The password for the given user.)  
-  Name: Password  
-  Type: :str
-- **name** (Names the bucket to be created.)  
-  Name: Bucket name  
-  Type: :str
-- **type** (Defines the type of the bucket.)  
-  Name: Bucket type  
-  Type: [:default :str "couchbase"]
-- **ram** (Allocates RAM in MB to the bucket.)  
-  Name: Bucket RAM size  
-  Type: [:default :int 256]
-- **retries** (Number of times to retry on failure.)  
-  Name: Retries  
-  Type: [:maybe :int]
-
-Module: couchbase  
-Args: {:image (:image params), :id "create-couchbase-bucket", :cmd (let [base (clojure.string/join " " [(str "--cluster=" (:cluster params)) (str "--username=" (:username params)) (str "--password=" (:password params))])] ["sh" "-c" (str "couchbase-cli bucket-list " base " | grep " (:name params) " || couchbase-cli bucket-create " base (str " --bucket=" (:name params)) (str " --bucket-type=" (:type params)) (str " --bucket-ramsize=" (:ram params)))]), :restart (when-let [n (:retries params)] {:policy "on-failure", :max-restarts n}), :services []}
-
-## cbq
-Runs CBQ against a Couchbase cluster.
-
-### Parameters
-- **image** (The container image to use.)  
-  Name: Image  
-  Type: [:default :str "public.ecr.aws/docker/library/couchbase:community-7.2.4"]
-- **cluster** (The cluster URL to connect to.)  
-  Name: Cluster  
-  Type: :str
-- **username** (The Couchbase user.)  
-  Name: Username  
-  Type: :str
-- **password** (The password for the given user.)  
-  Name: Password  
-  Type: :str
-- **script** (The script or command to run. If unset, runs an interactive session.)  
-  Name: Script  
-  Type: [:maybe :str]
-- **retries** (Number of times to retry on failure.)  
-  Name: Retries  
-  Type: [:maybe :int]
-
-Module: couchbase  
-Args: {:image (:image params), :id "cbq", :cmd (let [{u :username, p :password, c :cluster, s :script} params] ["sh" "-c" (->> [(when s (str "cat <<EOF > /tmp/s.n1ql\n" s "\nEOF")) (str "cbq -u " u " -p " p " -e " c " -exit-on-error " (when s " -f=/tmp/s.n1ql"))] (remove nil?) (clojure.string/join "\n"))]), :restart (when-let [n (:retries params)] {:policy "on-failure", :max-restarts n}), :services []}
 
 # polytope/mailpit
 Module for running Mailpit.
