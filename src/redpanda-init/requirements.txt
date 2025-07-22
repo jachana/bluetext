@@ -1,0 +1,2 @@
+kafka-python
+PyYAML==6.0.1

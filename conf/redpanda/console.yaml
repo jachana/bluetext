@@ -1,0 +1,8 @@
+kafka:
+  brokers: ["redpanda:9092"]
+server:
+  listenPort: 8079
+logger:
+  level: info
+connect:
+  enabled: false

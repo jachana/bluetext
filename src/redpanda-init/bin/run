@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+[[ "${TRACE:-}" == "true" ]] && set -o xtrace
+
+trap 'jobs -p | xargs -r kill' EXIT
+
+readonly ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." &> /dev/null && pwd)"
+readonly CACHE="${HOME}/.cache"
+
+# Install requirements
+(
+  cd "$ROOT" && \
+  pip install -q --cache-dir "$CACHE" --disable-pip-version-check --root-user-action=ignore -r requirements.txt
+)
+
+cd "$ROOT"
+exec python src/main.py "$@"
