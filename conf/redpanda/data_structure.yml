@@ -1,5 +1,0 @@
-# Redpanda data structure configuration
-# This file defines the topics that should exist in the Redpanda server
-
-topics:
-  - users

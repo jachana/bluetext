@@ -371,37 +371,7 @@ Runs a single Redpanda node in dev mode.
 Module: polytope/container  
 Args: {:id "redpanda", :image (:image params), :restart (:restart params), :cmd ["redpanda" "start" "--kafka-addr=0.0.0.0:9092" "--advertise-kafka-addr=redpanda:9092" "--pandaproxy-addr=0.0.0.0:8082" "--advertise-pandaproxy-addr=redpanda:8082" "--rpc-addr=0.0.0.0:33145" "--advertise-rpc-addr=redpanda:33145" "--schema-registry-addr=0.0.0.0:8081" "--mode=dev-container" "--smp=1" (str "--default-log-level=" (:log-level params))], :mounts (when-let [v (:data-volume params)] [{:path "/var/lib/redpanda/data", :source v}]), :services [{:id :redpanda, :ports [{:port 9092, :protocol :tcp, :label :kafka} {:port 8082, :protocol :http, :label :pandaproxy} {:port 8081, :protocol :http, :label :schema-registry} {:port 9644, :protocol :http, :label :admin-api} {:port 33145, :protocol :tcp, :label :rpc}]}]}
 
-## console
-Runs the Redpanda console.
 
-### Parameters
-- **image** (The image to use.)  
-  Name: Image  
-  Type: [:default :str "docker.redpanda.com/redpandadata/console:v2.4.5"]
-- **container-id** (The ID to give the spawned container.)  
-  Name: Container ID  
-  Type: [:default :str "redpanda-console"]
-- **brokers** (List of host-port pairs to use to connect to the Kafka/Redpanda cluster.)  
-  Name: Brokers  
-  Type: [:default [{:host :str, :port :int}] [{:host "redpanda", :port 9092}]]
-- **schema-registry-url** (Schema Registry to connect to.)  
-  Name: Schema Registry URL  
-  Type: [:maybe :str]
-- **admin-url** (Redpanda admin URL to connect to.)  
-  Name: Redpanda admin URL  
-  Type: [:maybe :str]
-- **log-level** (The log level.)  
-  Name: Log level  
-  Type: [:default [:enum "debug" "info" "warn" "error" "fatal"] "info"]
-- **port** (The console HTTP port.)  
-  Name: HTTP Port  
-  Type: [:default :int 8079]
-- **restart** (Restart policy for the container.)  
-  Name: Restart policy  
-  Type: [:default {:policy [:enum "always" "on-failure"], :max-restarts [:maybe :int]} {:policy "always", :max-restarts nil}]
-
-Module: polytope/container  
-Args: {:image (:image params), :id (:container-id params), :env [{:name "CONFIG_FILEPATH", :value "/etc/redpanda-console-config.yaml"}], :mounts [{:path "/etc/redpanda-console-config.yaml", :source {:type :string, :data (let [brokers (clojure.string/join (map (fn [{:keys [host port]}] (str host \: port)) (:brokers params)))] (str "kafka:\n" "  brokers: [\"" brokers "\"]\n" "server:\n" "  listenPort: " (:port params) "\n" (when-let [url (:schema-registry-url params)] (str "  schemaRegistry:\n" "    enabled: true\n" "    urls: [\"" url "\"]\n")) (when-let [url (:admin-url params)] (str "redpanda:\n" "  adminApi:\n" "    enabled: true\n" "    urls: [\"" url "\"]\n")) "logger:\n" "  level: " (:log-level params) "\n"))}}], :restart (:restart params), :services [{:id :redpanda-console, :ports [{:port (:port params), :protocol :http}]}]}
 
 # polytope/kafka
 Modules for running Kafka.

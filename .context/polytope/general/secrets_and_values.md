@@ -76,20 +76,34 @@ modules:
     ...
 
     - id: couchbase
+      args:
         ... 
         env:
             ...
-            - { name: COUCHBASE_HOST, value: "#pt-value couchbase_host" }
-            - { name: COUCHBASE_USERNAME, value: "#pt-secret couchbase_username" }
-            - { name: COUCHBASE_PASSWORD, value: "#pt-secret couchbase_password" }
+            - { name: COUCHBASE_HOST, value: pt.value couchbase_host }
+            - { name: COUCHBASE_USERNAME, value: pt.secret couchbase_username }
+            - { name: COUCHBASE_PASSWORD, value: pt.secret couchbase_password }
 
     - id: frontend
+      args:
         ...
         env: 
             ...
-            - { name: API_PROTOCOL, value: "#pt-value api_protocol" }
-            - { name: API_HOST, value: "#pt-value api_host" }
-            - { name: API_PORT, value: "#pt-value api_port" }
+            - { name: API_PROTOCOL, value: pt.value api_protocol }
+            - { name: API_HOST, value: pt.value api_host }
+            - { name: API_PORT, value: pt.value api_port }
+
+  - id: rpk
+    args:
+      ...
+      env: [{ name: RPK_BROKERS, value: "{pt.value redpanda-host}:{pt.value redpanda-port}" }]
+
+
+  - id: redpanda-create-topics
+    args: 
+      ...
+      cmd: "topic create {pt.value redpanda-topics}"
+          
 
         
 ## Sample executable file with default values and secrets
