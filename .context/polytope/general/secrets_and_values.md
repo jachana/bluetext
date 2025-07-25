@@ -11,7 +11,7 @@ USAGE
   $ pt secrets set [<secret>] [<data>] [optional flags]
 
 DESCRIPTION
-  Sets the value of a secrets.
+--  Sets the value of a secret.
   Overwrites the value if it already exists.
   
   A specification in YAML/JSON/EDN format must be provided, using one of the
@@ -25,6 +25,7 @@ COMMAND OPTIONS
   -f, --file=<path>                Reads a secret specification from a YAML/JSON/EDN file.
   -o, --output=<(yaml|json|edn)>   Selects output format [default: yaml].
       --pretty                     Pretty-prints output when supported [default: true].
+  -r, --raw                        If the data is a string, number, or boolean, prints it as a raw string.
       --stdin                      If selected, reads a secret specification in YAML/JSON/EDN format from stdin.
 
 GLOBAL OPTIONS
@@ -34,16 +35,14 @@ GLOBAL OPTIONS
   -v, --verbose              Enables log printing in terminal. Raises level of detail in log file.
       --version              Prints the current CLI version.
 
-
-
 ### pt value set --help.
-Sets the value of a values.
+Sets the value of a value.
 
 USAGE
   $ pt values set [<value>] [<data>] [optional flags]
 
 DESCRIPTION
-  Sets the value of a values.
+  Sets the value of a value.
   Overwrites the value if it already exists.
   
   A specification in YAML/JSON/EDN format must be provided, using one of the
@@ -57,7 +56,7 @@ COMMAND OPTIONS
   -f, --file=<path>                Reads a value specification from a YAML/JSON/EDN file.
   -o, --output=<(yaml|json|edn)>   Selects output format [default: yaml].
       --pretty                     Pretty-prints output when supported [default: true].
-      --spec=<>                    A a value specification in YAML/JSON/EDN format.
+  -r, --raw                        If the data is a string, number, or boolean, prints it as a raw string.
       --stdin                      If selected, reads a value specification in YAML/JSON/EDN format from stdin.
 
 GLOBAL OPTIONS

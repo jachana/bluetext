@@ -30,6 +30,9 @@
     module: polytope/redpanda!console
 ```
 
+#### Do not alter the code snipped
+The provided code snipped is the _ONLY_ code regarding redpanda that you can add to the polytope.yml file. 
+
 ## For any Python code that accesses redpanda
 Use the kafka-python package. Version: 2.2.15
 
