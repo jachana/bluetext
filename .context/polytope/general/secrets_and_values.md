@@ -70,7 +70,7 @@ GLOBAL OPTIONS
 
 ## Secrets and values are dereferenced in the polytope.yml file as follows
 
-The value of a map pair can be specified as the data for a value or a secret. E.g. 
+The value of a map pair can be specified as the data of a value or a secret, or an interpolated string with a value or secret. Interpolated strings have variables specified within curly braces. E.g.
 
 modules: 
     ...
@@ -93,17 +93,17 @@ modules:
             - { name: API_HOST, value: pt.value api_host }
             - { name: API_PORT, value: pt.value api_port }
 
-  - id: rpk
-    args:
-      ...
-      env: [{ name: RPK_BROKERS, value: "{pt.value redpanda-host}:{pt.value redpanda-port}" }]
+    - id: rpk
+      args:
+        ...
+        env: [{ name: RPK_BROKERS, value: "{pt.value redpanda-host}:{pt.value redpanda-port}" }]
 
 
-  - id: redpanda-create-topics
-    args: 
-      ...
-      cmd: "topic create {pt.value redpanda-topics}"
-          
+    - id: redpanda-create-topics
+      args: 
+        ...
+        cmd: "topic create {pt.value redpanda-topics}"
+            
 
         
 ## Sample executable file with default values and secrets
