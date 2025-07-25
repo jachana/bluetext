@@ -29,7 +29,7 @@ templates:
           after: postgres
           after-condition: success
 
-Instead, start both modules and have the code inthe postgres-init module handle that the 
+Instead, start both modules and have the code in the postgres-init module handle that the 
 postgres module may not yet be fully up and running. 
 
 ## The code must be fault tolerance to handle that other modules may be restarted at any time

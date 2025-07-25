@@ -38,7 +38,295 @@ This file contains comprehensive documentation about Polytope, a job runner plat
 
 ## polytope.yml file
 
-The contents of the polytope.yml file must follow the data type PolytopeFile that is specified in the Polytope data types documentation.
+Polytope files are called polytope.yml and follow the standard yaml syntax for plain data.
+The contents of the polytope.yml file must follow the data type `PolytopeFile` that is specified in the Polytope data types documentation.
+
+The Polytope file has the top-level keys `modules` and `templates`:
+- `modules` is a list of module declarations. Modules are encapsulated, reusable snippets of code that take a (possibly empty) set of arguments, and either call another module, or run a snippet of code. Typically modules perform some simple task, like running a container.
+- `templates` is a list of template declarations. Each template declaration is a list of module calls. Possibly with ordering dependencies. Templates can also take arguments.
+
+### Modules
+Module specifications must adhere to the `ModuleSpec` type in `data_types_yaml_specification.yml` (henceforth: "the definitions file").
+
+The following keys are supported when defining a module:
+- `id` Uniquely identifies a module. May only contain '0–9', 'a–z', '_', and '-'. Required.
+- `ìnfo` Optional info string about the module.
+- `params` Parameter declarations for the module. When calling the module, the provided args must match this declaration. Explained in detail below. Optional.
+- `module` Defines another module that this module will call. Not compatible with `code`. Required unless `code` is provided.
+- `args` Arguments to pass as parameters to the module defined by `module`. Must match the parameters declared in that module. Explained in detail below. Required if the module being called has required parameters.
+- `code` Only provided for modules that run code directly. Not compatible with `args` or `module`. Inline code written in Clojure or JavaScript that runs against the module API.
+
+#### Example
+```
+# The official module for running containers (optionally with associated services):
+info: Runs a Docker container.
+id: container
+params:
+- {id: image, info: The Docker image to run., name: Image, type: docker-image}
+- id: id
+  info: The container's ID/name.
+  name: ID
+  type: [maybe, id]
+- id: cmd
+  info: The command to run in the container.
+  name: Command
+  type:
+  - maybe
+  - - either
+    - str
+    - - [maybe, str]
+- id: mounts
+  info: Code or files to mount into the container.
+  name: Mounts
+  type:
+  - maybe
+  - - - maybe
+      - {source: mount-source, path: absolute-path}
+- id: env
+  info: Environment variables for the container.
+  name: Environment variables
+  type:
+  - maybe
+  - - [maybe, env-var]
+- id: workdir
+  info: The container's working directory.
+  name: Working directory
+  type: [maybe, absolute-path]
+- id: entrypoint
+  info: The container's entrypoint.
+  name: Entrypoint
+  type:
+  - maybe
+  - - either
+    - str
+    - - [maybe, str]
+- id: no-stdin
+  info: Whether to keep the container's stdin closed.
+  name: Non-interactive
+  type: [default, bool, false]
+- id: tty
+  info: Whether to allocate a pseudo-TTY for the container.
+  name: TTY
+  type: [default, bool, true]
+- id: services
+  info: Ports in the container to expose as services.
+  name: Services
+  type:
+  - maybe
+  - [service-spec]
+- id: datasets
+  info: Paths in the container to store as datasets upon termination.
+  name: Datasets
+  type:
+  - maybe
+  - - {path: absolute-path, sink: dataset-sink}
+- id: user
+  info: The user (name or UID) to run commands in the container as.
+  name: User
+  type:
+  - maybe
+  - [either, int, str]
+- id: restart
+  info: What policy to apply on restarting containers that fail.
+  name: Restart policy
+  type:
+  - maybe
+  - policy:
+    - maybe
+    - [enum, never, always, on-failure]
+    max-restarts: [maybe, int]
+- id: scaling
+  info: How many replicas to create.
+  name: Replicas
+  type: [maybe, int]
+- id: update-image
+  info: Image update policy.
+  name: Update image
+  type: [default, bool, false]
+- id: instance-type
+  info: The instance type to run the container on.
+  name: Instance type
+  type: [maybe, instance-type]
+- id: resources
+  info: The resources to allocate for the container.
+  name: Resources
+  type:
+  - maybe
+  - cpu:
+      request: [maybe, num]
+      limit: [maybe, num]
+    memory:
+      request: [maybe, data-size]
+      limit: [maybe, data-size]
+code: |-
+  #pt-clj (let [spec (merge
+              (dissoc params :services :datasets)
+              (when-let [replicas (:scaling params)]
+               {:scaling {:replicas replicas, :type "manual"}}))
+        id   (pt/spawn spec)]
+    (pt/await-started
+     {:ref id, :type "deployment"})
+    (doseq [service (:services params)]
+      (pt/open-service service))
+    (let [exit-code (pt/await-done
+                     {:ref id, :type "deployment"})]
+      (when (not= 0 exit-code)
+        (pt/fail
+         "The container exited with a nonzero exit code."
+         {:exit-code exit-code})))
+    (doseq [{:keys [path sink]} (:datasets params)]
+      (pt/store-dataset
+       {:container-id id
+       :path         path
+       :type         "container-path"}
+       sink)))
+
+# Module that calls another module:
+info: Runs a PostgreSQL container.
+id: postgres
+default?: true
+params:
+- id: image
+  info: The Docker image to run.
+  name: Image
+  type: [default, docker-image, 'public.ecr.aws/docker/library/postgres:16.2']
+- id: container-id
+  info: The ID to use for the container.
+  name: Container ID
+  type: [default, str, postgres]
+- id: data-volume
+  name: Data Volume
+  info: The volume (if any) to mount for data.
+  type: [maybe, mount-source]
+- id: service-id
+  info: The ID to use for the service.
+  name: Service ID
+  type: [default, str, postgres]
+- id: env
+  info: Environment variables to pass to the server.
+  name: Environment variables
+  type:
+  - maybe
+  - [env-var]
+- id: cmd
+  info: The command to run in the container. If unspecified, runs the PostgreSQL server.
+  name: Command
+  type:
+  - maybe
+  - - either
+    - str
+    - - [maybe, str]
+- id: restart
+  info: What policy to apply on restarting containers that fail.
+  name: Restart policy
+  type:
+  - maybe
+  - policy: [enum, always, on-failure]
+    max-restarts: [maybe, int]
+- id: scripts
+  info: SQL files to run when initializing the DB.
+  name: Scripts
+  type:
+  - maybe
+  - [mount-source]
+module: polytope/container
+args:
+  image: pt.param image
+  id: pt.param container-id
+  mounts: |-
+    pt.clj
+    (concat
+     (when-let [v (:data-volume params)]
+      [{:path "/var/lib/postgresql/data", :source v}])
+     (for [s (:scripts params)]
+      {:path   "/docker-entrypoint-initdb.d/data-backup.sql"
+       :source s}))
+  env: pt.param env
+  tty: "pt.clj (empty? (:scripts params))"
+  restart: pt.param restart
+  services:
+  - id: pt.param service-id
+    ports:
+    - {protocol: tcp, port: 5432}
+```
+
+#### params
+Any module that takes parameters must have a `:params` key, which must be a list of `ParamSpec`.
+
+`ParamSpec`s have the following keys:
+- `id`: the name of the parameter. Required.
+- `type`: a data structure defining the type of the argument. Must follow the param type DSL, explained below. Required.
+- `ìnfo`: Optional info string about the param.
+
+##### Example
+```
+params:
+  - id: env-vars
+    type: [env-var]
+  - id: foo
+    type: [default, {foo: str}, {foo: bar}]
+```
+
+#### args
+When a module calls a module that has params, the values for those params are specified as a map under the `args` key.
+
+Values can be supplied in multiple different ways:
+- Literal data: e.g. `"foo"`, `123`. `[false]`, `{foo: bar}` etc.
+- References to parameters (as defined in `:params`): `pt.param my-param`
+- References to values: `pt.value my-value`.  Values are data (typically strings) that have been provided separately by the user.
+- References to secrets: `pt.secret my-secret`. Secrets are sensitive data (typically strings) that have been provided separately by the user.
+- Interpolated strings: strings that contain references to params, values or secrets, e.g. `http://{pt.param domain}:{pt.value port}/foo?api-key={pt.secret my-secret-key}`
+- Code: TODO
+
+Arg values can be any data but _MUST_ match the type spec of the corresponding param in the referenced module.
+
+#### Example
+```
+module: the-module-were-calling
+args:
+    some-string-param: "hello world"      # plain string
+    some-complex-param: [foo, {foo: bar}] # plain data
+    some-param: pt.value foo              # reference to a value
+    some-param-2: pt.secret foo           # reference to a secret
+    some-param-3:
+        foo: "interpolated string with a value: {pt.value foo}"
+        bar: [pt.param bar, pt.secret baz] # data with inline references
+```
+
+#### Param type DSL
+
+The param type DSL is how types are defined in Polytope.
+
+Basic types:
+- `str`: strings
+- `bool`: `true` or `false`
+- `int`: integers
+- `num`: any number
+
+Compound types:
+- `[...]`: list of elements matching a given type (e.g. `[int]`, `[bool]`).
+- `{...}`: map of named keys whose values match provided types (e.g. `{foo: int, bar: str}`)
+- `[either, ...]`: union type (e.g. `[either, str, int]`, `[either, str, [str], int, {foo: int}]`)
+- `[default, $type, $value]`: type with a default value (e.g. `[default, str, "my-default-value"]`)
+- `[enum, ...]`: enum type (e.g. `[enum, 1, 2, "foo"]`)
+- `[maybe, $type]`: marks a type as optional.
+- `[regex, $regex]`: string type constrained to match the given regex.
+
+We also have some type aliases for commonly used types:
+- `env-var`: equivalent to `{name: str, value: str}`
+- `mount-source`: defined as `MountSourceSpec` in the definitions file. Intended for specifying data to be mounted containers. Examples:
+  - `{type: host, path: /foo/bar}`: a path on the host machine to mount into the container. If a relative path like `some/folder` is provided, this is relative to the directory of the `polytope.yml` file. If a relative path with a leading `./`path like `./some/other/folder` is provided, it's relative to the current working directory.
+  - `{type: string, data: my-string}`: literal string mounted as a file.
+  - `{type: volume, id: my-volume}`: a named volume. By default gets created if it doesn't already exist. Retained after the job finished.
+- `service-spec`: a service specification. Must match `ServiceSpec` in the defiitions file. Keys:
+  - `id`: the ID of the created service. Required.
+  - `ports`: a list of named port mappings. `ServicePortsSpec` in the defiitions file. Each spec has the following keys:
+    - `port`: the port on the container side.
+    - `protocol`: the protocol being routed.
+    - `expose-as`: the port on the host machine to which the port is mapped.
+
+### Templates
+TBD
 
 ## Module life cycle.
 In Polytope, the container that a module is running in is stopped when the command specified by the cmd parameter has run to completion. That means that any service started by the script will also be shut down when the script completes. 
