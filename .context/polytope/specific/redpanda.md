@@ -4,8 +4,7 @@
 
 ### Add the following code verbatim to the polytope.yml file
 
-
-<code type="yaml">
+```yaml
   - id: redpanda
     module: polytope/redpanda
     args:
@@ -19,7 +18,7 @@
       env: [{ name: RPK_BROKERS, value: "{pt.value redpanda-host}:{pt.value redpanda-port}" }]
       cmd: pt.param cmd
       restart:
-        policy: always
+        policy: on-failure
 
   - id: redpanda-create-topics
     module: rpk
@@ -29,8 +28,7 @@
   - id: redpanda-console
     info: Runs the Redpanda Console service
     module: polytope/redpanda!console
-  
-</code>
+```
 
 ## For any Python code that accesses redpanda
 Use the kafka-python package. Version: 2.2.15
