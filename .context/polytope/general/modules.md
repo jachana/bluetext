@@ -1,3 +1,5 @@
+This file contains module definitions for some built-in Polytope modules. Use these if you can.
+
 # polytope/redpanda
 
 ```yml
