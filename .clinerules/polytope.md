@@ -1,1 +1,1 @@
-Never execute code. Let the user execute code manually using Polytope instead. 
+Avoid running the services you write. Let the user run them using Polytope instead.
