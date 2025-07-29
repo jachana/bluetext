@@ -6,17 +6,7 @@ Use bun and React with React Router v7.
 
 Use environment variables for configuration, and make sure to 1. set these in the corresponding Polytope module, and 2. expose them as params in the module.
 
-Generate scaffolding via `bun create react-router --no-git-init --no-install path/to/frontend`, and use `bun add` to install dependencies. DO NOT try to guess package versions! Let bun handle this for you!
-
-Provide a `bin/run` script that installs deps and runs the app (specify this as the `cmd` in the Polytope module for the frontend):
-```yaml
-#!/bin/sh
-
-set -eu
-
-bun install
-exec bun dev --port "${PORT:-8000}" --host "${HOST:-0.0.0.0}"
-```
+Generate scaffolding via `pt run create-subproject{template: frontend, path: my-project-path}`, and use `bun add` to install dependencies. DO NOT try to guess package versions! Let bun handle this for you!
 
 Example of a Polytope frontend module:
 ```yaml
