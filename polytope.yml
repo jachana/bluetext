@@ -22,9 +22,9 @@ modules:
               exit 1
             fi
           else
-            mkdir -p "$(dirname "$(realpath "$TARGET_PATH")")"
+            mkdir -p "$TARGET_PATH"
           fi
-          cp -r .templates/$TEMPLATE "$TARGET_PATH"
+          cp -r .templates/$TEMPLATE/* "$TARGET_PATH"
           echo "Done!"
       workdir: /repo
       mounts:
