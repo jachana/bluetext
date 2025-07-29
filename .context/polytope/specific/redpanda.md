@@ -17,12 +17,15 @@
 </code>
 
 ## For any Python code that accesses redpanda
-Use the kafka-python package. Version: 2.2.15
+Use the kafka-python package. Version: 2.2.15. 
+
+The requirements.txt file should not specify any other version than 2.2.15. 
+kafka-python==2.2.15
 
 You must check that no python code uses any other version of the kafka-python package.
 
 ## Topic initialization and management
-Use the cillers-init module to manage Redpanda topics automatically.
+Use the cillers-init module to create Redpanda topics. The required topics will not be created unless cillers-init is run. 
 
 **See cillers-init.md for complete setup instructions.**
 

@@ -16,7 +16,7 @@
 exec npm run start
 </file>
 
-### Create the following executable file
+## Create the following executable file
 
 <file path="./frontend/bin/init" mod="x">
 #!/usr/bin/env bash
@@ -31,3 +31,14 @@ npm install 2> >(grep -v warning 1>&2)
 </file>
 
 
+## Common Code Generation Errors
+
+Make sure to check that the following is done correctly: 
+
+- __Create tsconfig.json__: Add a proper TypeScript configuration file for the React project with correct JSX settings and module resolution options.
+
+- __App import statement__: Use `import App from './App.tsx'` to be explicit about the file extension to avoid webpack compilation error.
+
+- __Create package.json__: Add a proper package.json file.
+
+- __Serve static files__: Static files should be served from the public directory. Make sure that the files exist. 

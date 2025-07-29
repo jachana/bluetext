@@ -8,7 +8,7 @@ Polytope supports setting and reading secrets and values.
 Sets the value of a secret.
 
 USAGE
-  $ pt secrets set [<secret>] [<data>] [optional flags]
+  $ pt secrets set [<secret-key>] [<data>] [optional flags]
 
 DESCRIPTION
   Sets the value of a secrets.
@@ -18,7 +18,6 @@ DESCRIPTION
   following methods:
    - stdin (in combination with the `--stdin` flag)
    - a file (in combination with the `--file` flag)
-   - the `--spec` flag.
 
 COMMAND OPTIONS
   -c, --context=<context>          Runs as a specific user against a specific Polytope instance.
@@ -40,7 +39,7 @@ GLOBAL OPTIONS
 Sets the value of a values.
 
 USAGE
-  $ pt values set [<value>] [<data>] [optional flags]
+  $ pt values set [<value-key>] [<data>] [optional flags]
 
 DESCRIPTION
   Sets the value of a values.
@@ -50,7 +49,6 @@ DESCRIPTION
   following methods:
    - stdin (in combination with the `--stdin` flag)
    - a file (in combination with the `--file` flag)
-   - the `--spec` flag.
 
 COMMAND OPTIONS
   -c, --context=<context>          Runs as a specific user against a specific Polytope instance.

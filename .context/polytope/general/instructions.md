@@ -1,5 +1,8 @@
 # Instructions to follow when generating code that should run on Polytope
 
+## Executing code
+Never execute code. Let the user execute code manually using Polytope instead. 
+
 ## Format of polytope.yml file
 The polytope.yml file must follow the PolytopeFile data type.
 
@@ -12,12 +15,12 @@ In the polytope.yml file, all values that may change between deployment environm
 ## Hostnames
 The hostnames that web apps need, must be based on Polytope values, so they can be dynamically set to different values in deployment different environments.
 
-The Polytope service hostnames that are accessible internally within a template are not available to a web browser or any other software running outside of Polytope. E.g. software that is not run by Polytope, such as the web browser, will be able to access the api running on the local machine at hostname 'localhost', not 'api', whereas software running in Polytope modules can access the api at the hostname 'api', not 'localhost'.
+The Polytope service hostnames that are accessible internally within a template are not available to a web browser or any other software running outside of Polytope. E.g. software that is not run by Polytope, such as the web browser, will be able to access the api running on the local machine at hostname 'localhost', not 'api', whereas software running in Polytope modules can access the api at the hostname 'api', not 'localhost'. Also notice that services that are run by Polytope cannot access other services using localhost, since that will point only to the local container. Instead all Polytope modules access other Polytope modules using the Polytope module hostname, e.g. 'api'.
 
 ## Don't wait for non-completion modules.
 In Polytope, the container that a module is running in is stopped when the command specified by the cmd parameter runs to completion. That means that any service started by the script will also be shut down when the script completes. 
 
-In a Polytope template that defines a stack of services that should be kept running, no module should wait for other module. 
+In a Polytope template that defines a stack of services that should be kept running, no module should wait for other module. So, never do run-when after a service that should be kept running like Redpanda. 
 
 For example, in the following template the postgres-init module will never run, because the postgres module keeps on running until the whole Polytope job is stopped. 
 templates:

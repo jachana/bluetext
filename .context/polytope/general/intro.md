@@ -330,3 +330,16 @@ TBD
 
 ## Module life cycle.
 In Polytope, the container that a module is running in is stopped when the command specified by the cmd parameter has run to completion. That means that any service started by the script will also be shut down when the script completes. 
+
+The run-when.after setting in Polytope means that the module should be run after the specified module has exited successfully. So in the following template specification, module b will run after module a has been stopped and no longer is available. 
+
+templates:
+  - id: stack
+    run:
+      - module: a
+      - module: b
+        run-when:
+          after: a
+          after-condition: success
+
+
