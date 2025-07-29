@@ -1,26 +1,6 @@
 # Instructions to follow when generating code that should run on Polytope
 
-## NEVER use pt.value - ALWAYS use pt.param instead!
-**CRITICAL**: pt.value requires users to manually set values in a separate step, which is error-prone and inconvenient.
 
-❌ **WRONG**:
-```yaml
-env: [{ name: RPK_BROKERS, value: "{pt.value redpanda-host}:{pt.value redpanda-port}" }]
-```
-
-✅ **CORRECT**:
-```yaml
-params:
-  - id: redpanda-host
-    type: [default, str, redpanda]
-  - id: redpanda-port
-    type: [default, int, 9092]
-# ...
-env: [{ name: RPK_BROKERS, value: "{pt.param redpanda-host}:{pt.param redpanda-port}" }]
-```
-
-Values are global state shared between all runs. ALWAYS declare module params and use `pt.param` instead!
-For secrets, DO use `pt.secret` - but then you'll have to tell the user to set the secret via `pt secret set <secret-name> <value>` before running Polytope.
 
 ## Consice template section
 Make the template section of the polytope.yml file as short as possible. Define modules under the modules section or use pre-existing Polytope modules and refer to them from the template run section.
