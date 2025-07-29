@@ -1,0 +1,39 @@
+modules:
+  - id: create-subproject
+    module: polytope/container
+    params:
+      - id: path
+        info: Path relative to the repo root where the project will be created
+        type: str
+      - id: template
+        info: Template to use for the project
+        type: [enum, frontend, python-api]
+    args:
+      image: ubuntu
+      cmd:
+        - sh
+        - -c
+        - |
+          set -eu
+          echo "Creating $TEMPLATE project at $TARGET_PATH..."
+          if [ -d "$TARGET_PATH" ]; then
+            if [ "$(ls -A "$TARGET_PATH")" ]; then
+              echo "ERROR: The target path '$TARGET_PATH' already exists and is not empty. Please choose a different path."
+              exit 1
+            fi
+          else
+            mkdir -p "$(dirname "$(realpath "$TARGET_PATH")")"
+          fi
+          cp -r .templates/$TEMPLATE "$TARGET_PATH"
+          echo "Done!"
+      workdir: /repo
+      mounts:
+        - path: /repo
+          source:
+            type: host
+            path: ''
+      env:
+        - name: TARGET_PATH
+          value: pt.param path
+        - name: TEMPLATE
+          value: pt.param template

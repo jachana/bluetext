@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+[[ "${TRACE:-}" == true ]] && set -o xtrace
+
+readonly project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." &> /dev/null && pwd)"
+cd "$project_root"
+
+VIRTUAL_ENV="$HOME/.cache/venvs/api"
+
+if ! command -v uv &> /dev/null; then
+  PYTHON_CMD="$(command -v python3 || command -v python)"
+  echo "Installing uv..."
+  $PYTHON_CMD -m pip install -q --disable-pip-version-check --root-user-action=ignore uv
+fi
+
+uv sync --no-progress
