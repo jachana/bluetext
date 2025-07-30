@@ -38,12 +38,12 @@ modules:
         - name: TEMPLATE
           value: pt.param template
 
-  - id: uv-add
+  - id: add-package-python
     info: Adds uv packages in a Python component
     module: polytope/container
     params:
       - id: packages
-        info: Comma-separated list of packages to install
+        info: Comma-separated list of packages to add
         type: str
       - id: component-path
         info: Relative path of the component's root directory
@@ -57,17 +57,50 @@ modules:
           set -eu
           echo "Installing uv..."
           pip install uv
-          echo "Adding uv packages: $PACKAGES"
+          echo "Adding python packages: $PACKAGES"
           cd "/component"
           if [ ! -f "pyproject.toml" ]; then
             echo "ERROR: No pyproject.toml found"
             exit 1
           fi
           # Add packages to pyproject.toml
-          for package in $(echo "$PACKAGES" | tr ',' ' '); do
-            echo "Adding package: $package"
-            uv add "$package"
-          done
+          uv add "$PACKAGES"
+          echo "Done!"
+      workdir: /component
+      mounts:
+        - path: /component
+          source:
+            type: host
+            path: pt.param component-path
+      env:
+        - name: PACKAGES
+          value: pt.param packages
+
+  - id: add-package-npm
+    info: Adds npm packages in a Node.js component
+    module: polytope/container
+    params:
+      - id: packages
+        info: Space-separated list of packages to add
+        type: str
+      - id: component-path
+        info: Relative path of the component's root directory
+        type: str
+    args:
+      image: node:18-slim
+      cmd:
+        - sh
+        - -c
+        - |
+          set -eu
+          echo "Adding npm packages: $PACKAGES"
+          cd "/component"
+          if [ ! -f "package.json" ]; then
+            echo "ERROR: No package.json found"
+            exit 1
+          fi
+          # Add packages using yarn with --no-install flag
+          yarn add --no-install $PACKAGES
           echo "Done!"
       workdir: /component
       mounts:

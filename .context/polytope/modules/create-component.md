@@ -1,6 +1,6 @@
-# Documentation for create-subproject tool for Generating code from templates
+# Documentation for create-component tool for Generating code from templates
 
-Use the Polytope create-subproject module to generate code whenever possible
+Use the Polytope create-component module to generate code whenever possible
 
 The tool supports creating the initial code for the following types of applications:
 * React app
