@@ -1,0 +1,80 @@
+modules:
+  - id: create-component
+    module: polytope/container
+    params:
+      - id: target-path
+        info: Path relative to the repo root where the component will be created
+        type: str
+      - id: template
+        info: Template to use for the component
+        type: [enum, frontend, python-api]
+    args:
+      image: ubuntu
+      cmd:
+        - sh
+        - -c
+        - |
+          set -eu
+          echo "Creating $TEMPLATE component at $TARGET_PATH..."
+          if [ -d "$TARGET_PATH" ]; then
+            if [ "$(ls -A "$TARGET_PATH")" ]; then
+              echo "ERROR: The target path '$TARGET_PATH' already exists and is not empty. Please choose a different path."
+              exit 1
+            fi
+          else
+            mkdir -p "$TARGET_PATH"
+          fi
+          cp -r .templates/$TEMPLATE/* "$TARGET_PATH"
+          echo "Done!"
+      workdir: /repo
+      mounts:
+        - path: /repo
+          source:
+            type: host
+            path: ''
+      env:
+        - name: TARGET_PATH
+          value: pt.param target-path
+        - name: TEMPLATE
+          value: pt.param template
+
+  - id: uv-add
+    info: Adds uv packages in a Python component
+    module: polytope/container
+    params:
+      - id: packages
+        info: Comma-separated list of packages to install
+        type: str
+      - id: component-path
+        info: Relative path of the component's root directory
+        type: str
+    args:
+      image: python:3.13-slim
+      cmd:
+        - sh
+        - -c
+        - |
+          set -eu
+          echo "Installing uv..."
+          pip install uv
+          echo "Adding uv packages: $PACKAGES"
+          cd "/component"
+          if [ ! -f "pyproject.toml" ]; then
+            echo "ERROR: No pyproject.toml found"
+            exit 1
+          fi
+          # Add packages to pyproject.toml
+          for package in $(echo "$PACKAGES" | tr ',' ' '); do
+            echo "Adding package: $package"
+            uv add "$package"
+          done
+          echo "Done!"
+      workdir: /component
+      mounts:
+        - path: /component
+          source:
+            type: host
+            path: pt.param component-path
+      env:
+        - name: PACKAGES
+          value: pt.param packages

@@ -1,7 +1,5 @@
 # Instructions to follow when generating code that should run on Polytope
 
-
-
 ## Consice template section
 Make the template section of the polytope.yml file as short as possible. Define modules under the modules section or use pre-existing Polytope modules and refer to them from the template run section.
 
