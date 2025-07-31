@@ -24,7 +24,7 @@ modules:
           else
             mkdir -p "$TARGET_PATH"
           fi
-          cp -r .templates/$TEMPLATE/* "$TARGET_PATH"
+          cp -r .component-templates/$TEMPLATE/* "$TARGET_PATH"
           echo "Done!"
       workdir: /repo
       mounts:
@@ -100,7 +100,7 @@ modules:
             exit 1
           fi
           # Add packages using yarn with --no-install flag
-          yarn add --no-install $PACKAGES
+          yarn add $PACKAGES --no-install 
           echo "Done!"
       workdir: /component
       mounts:
@@ -111,3 +111,5 @@ modules:
       env:
         - name: PACKAGES
           value: pt.param packages
+
+templates:

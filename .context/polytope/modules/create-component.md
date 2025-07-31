@@ -6,5 +6,5 @@ The tool supports creating the initial code for the following types of applicati
 * React app
 * Python API
 
-Run the tool using Polytope as specifically described in the .context/polytope/templates 
+Run the tool using Polytope as specifically described in the .context/polytope/component-templates 
 documentation files.

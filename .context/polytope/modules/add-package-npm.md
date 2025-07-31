@@ -19,13 +19,13 @@ pt run --non-interactive "add-package-npm{packages: '<packages>', component-path
 
 ```bash
 # Add a single package
-pt run --non-interactive "add-package-npm{packages: 'react', component-path: 'src/frontend'}"
+pt run --non-interactive "add-package-npm{packages: 'react', component-path: 'frontend'}"
 
 # Add multiple packages
-pt run --non-interactive "add-package-npm{packages: 'react react-dom', component-path: 'src/frontend'}"
+pt run --non-interactive "add-package-npm{packages: 'react react-dom', component-path: 'frontend'}"
 
 # Add packages with specific versions
-pt run --non-interactive "add-package-npm{packages: 'react@18.2.0 react-dom@18.2.0', component-path: 'src/frontend'}"
+pt run --non-interactive "add-package-npm{packages: 'react@18.2.0 react-dom@18.2.0', component-path: 'frontend'}"
 ```
 
 ## Requirements
@@ -37,7 +37,7 @@ pt run --non-interactive "add-package-npm{packages: 'react@18.2.0 react-dom@18.2
 
 - Uses Node.js 18 slim image
 - Mounts the component's root directory to `/component` in the container
-- Runs `yarn add --no-install <packages>` to add packages to package.json without installing them
+- Runs `yarn add <packages> --no-install` to add packages to package.json without installing them
 - Validates that package.json exists before attempting to add packages
 
 ## Error Handling
