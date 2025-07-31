@@ -1,10 +1,10 @@
 # Documentation for create-component tool for Generating code from templates
 
-Use the Polytope create-component module to generate code whenever possible
+The create-component module supports creating the initial scaffolding code and polytope.yml configurations. 
 
-The tool supports creating the initial code for the following types of applications:
-* React app
-* Python API
+| Component Type | Component Template ID | Command |
+|----------------|-----------------------|---------|
+| React app      | frontend              | `pt run --non-interactive "create-component{template: frontend, path: my-component-root-path}"` |
+| Python API     | python-api            | `pt run --non-interactive "create-component{template: python-api, path: my-component-root-path}"` |
 
-Run the tool using Polytope as specifically described in the .context/polytope/component-templates 
-documentation files.
+Before running the create-component module to create the scaffolding code and settings the polytope.yml configurations, read the files in the .component-templates/<componend-template-id>/context directory. 
