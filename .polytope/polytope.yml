@@ -1,14 +1,14 @@
 templates:
 
 modules:
-  - id: create-component
+  - id: boilerplate
     module: polytope/container
     params:
       - id: target-path
-        info: Path relative to the repo root where the component will be created
+        info: Path relative to the repo root where the module's code will be created
         type: str
-      - id: template
-        info: Template to use for the component
+      - id: blueprint
+        info: Blueprint to use for the module
         type: [enum, frontend, python-api]
     args:
       image: ubuntu
@@ -17,7 +17,7 @@ modules:
         - -c
         - |
           set -eu
-          echo "Creating $TEMPLATE component at $TARGET_PATH..."
+          echo "Creating boilerplate code from the $BLUEPRINT blueprint at $TARGET_PATH..."
           if [ -d "$TARGET_PATH" ]; then
             if [ "$(ls -A "$TARGET_PATH")" ]; then
               echo "ERROR: The target path '$TARGET_PATH' already exists and is not empty. Please choose a different path."
@@ -26,7 +26,7 @@ modules:
           else
             mkdir -p "$TARGET_PATH"
           fi
-          cp -r .component-templates/$TEMPLATE/root/* "$TARGET_PATH"
+          cp -r .blueprints/$BLUEPRINT/boilerplate/* "$TARGET_PATH"
           echo "Done!"
       workdir: /repo
       mounts:
@@ -37,18 +37,18 @@ modules:
       env:
         - name: TARGET_PATH
           value: pt.param target-path
-        - name: TEMPLATE
-          value: pt.param template
+        - name: BLUEPRINT
+          value: pt.param blueprint
 
   - id: add-package-python
-    info: Adds uv packages in a Python component
+    info: Adds uv packages in a Python module
     module: polytope/container
     params:
       - id: packages
         info: Comma-separated list of packages to add
         type: str
-      - id: component-path
-        info: Relative path of the component's root directory
+      - id: module-code-path
+        info: Relative path of the module code's root directory
         type: str
     args:
       image: python:3.13-slim
@@ -60,7 +60,7 @@ modules:
           echo "Installing uv..."
           pip install uv
           echo "Adding python packages: $PACKAGES"
-          cd "/component"
+          cd "/module-code"
           if [ ! -f "pyproject.toml" ]; then
             echo "ERROR: No pyproject.toml found"
             exit 1
@@ -68,25 +68,24 @@ modules:
           # Add packages to pyproject.toml
           uv add $PACKAGES
           echo "Done!"
-      workdir: /component
       mounts:
-        - path: /component
+        - path: /module-code
           source:
             type: host
-            path: pt.param component-path
+            path: pt.param module-code-path
       env:
         - name: PACKAGES
           value: pt.param packages
 
   - id: add-package-npm
-    info: Adds npm packages in a Node.js component
+    info: Adds npm packages in an npm compatible module, such as Node.js, Deno or Bun. 
     module: polytope/container
     params:
       - id: packages
         info: Space-separated list of packages to add
         type: str
-      - id: component-path
-        info: Relative path of the component's root directory
+      - id: module-code-path
+        info: Relative path of the module's code root directory
         type: str
     args:
       image: node:18-slim
@@ -96,7 +95,7 @@ modules:
         - |
           set -eu
           echo "Adding npm packages: $PACKAGES"
-          cd "/component"
+          cd "/module-code"
           if [ ! -f "package.json" ]; then
             echo "ERROR: No package.json found"
             exit 1
@@ -104,12 +103,11 @@ modules:
           # Add packages using yarn with --no-install flag
           yarn add $PACKAGES --no-install 
           echo "Done!"
-      workdir: /component
       mounts:
-        - path: /component
+        - path: /module-code
           source:
             type: host
-            path: pt.param component-path
+            path: pt.param module-code-path
       env:
         - name: PACKAGES
           value: pt.param packages

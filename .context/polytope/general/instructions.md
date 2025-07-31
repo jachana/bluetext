@@ -8,7 +8,7 @@ Keep names simple, and don't set other ids in templates unless you have multiple
 Don't needlessly add template params. The default params on the module should be sufficient for most use cases.
 
 ## Adding modules
-Whenever adding a module to the polytope.yml file, first check if there is a component-template for this type of module. If the component-tem
+Whenever adding a module to the polytope.yml file, first check if there is a Blueprint for this type of module. **IMPORTANT: If the Blueprint includes a boilerplate directory, use the boilerplate to generate the initial code for the module!**
 
 ## Give modules sensible parameters
 Try to provide default values for all parameters in the modules you write. Prefer parameters to 'hard-coding' values in the module, especially if they're repeated or can be expected to change.

@@ -18,7 +18,7 @@ This file contains comprehensive documentation about Polytope, a job runner plat
 - Modules can run code snippets directly or wrap other modules
 
 ### Templates
-- Templates are blueprints for full jobs
+- Templates specify full jobs
 - Define what steps to run for easy reuse
 - Specified using TemplateSpec data type
 
