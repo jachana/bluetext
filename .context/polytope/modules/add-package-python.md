@@ -22,10 +22,10 @@ pt run --non-interactive "uv-add{packages: '<packages>', component-path: '<compo
 pt run --non-interactive "uv-add{packages: 'fastapi', component-path: 'api'}"
 
 # Add multiple packages
-pt run --non-interactive "uv-add{packages: 'fastapi,uvicorn', component-path: 'api'}"
+pt run --non-interactive "uv-add{packages: 'fastapi uvicorn', component-path: 'api'}"
 
 # Add packages with specific versions
-pt run --non-interactive "uv-add{packages: 'fastapi==0.104.1,uvicorn==0.24.0', component-path: 'api'}"
+pt run --non-interactive "uv-add{packages: 'fastapi==0.104.1 uvicorn==0.24.0', component-path: 'api'}"
 ```
 
 ## Requirements

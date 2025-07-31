@@ -9,7 +9,7 @@ Use the create-component Polytope module to create the project via
 ## Package managment
 Use the uv-install Polytope module to install packages via 
 `pt run --non-interactive "uv-add{packages: '<packages>', component-path='<component-path>'}"`, where:
-* `packages` is a comma-separted list of packages, with either just the name of the package or including a specific version 
+* `packages` is a space-separted list of packages, with either just the name of the package or including a specific version 
 `<package-name>==<version>`. Only specify the version if the user has specifically asked for it. Otherwise always specify 
 only the name of the package. 
 * `component-path` is the relative path of the component's root directory.

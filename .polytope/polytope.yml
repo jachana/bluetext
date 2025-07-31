@@ -64,7 +64,7 @@ modules:
             exit 1
           fi
           # Add packages to pyproject.toml
-          uv add "$PACKAGES"
+          uv add $PACKAGES
           echo "Done!"
       workdir: /component
       mounts:
