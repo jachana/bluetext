@@ -3,10 +3,31 @@
 ## Latest docker image
 Use the latest Couchbase server image: "couchbase:enterprise-7.6.6"
 
-## Needs to be initialized before use
-Couchbase needs to be initialized. This can be done by running the cillers-init module. Include the cillers-init module in the template that runs the Couchbase module.
+## Running Couchbase
 
-It can take up to 10 minutes for Couchbase to be initialized on the first run depending on the machine it is running on. Code that depends on Couchbase being up and running therefore needs to have long connection retry periods.
+### Add the following code to the polytope.yml file
+
+**Important: Make as few changes to the following as possible!**
+<code type="yaml">
+templates: 
+  - id: stack
+    run: 
+      - couchbase
+
+modules: 
+  - id: couchbase
+    module: polytope/couchbase
+    args:
+      image: couchbase:enterprise-7.6.6
+      data-volume: { id: couchbase-data, type: volume, scope: project }
+</code>
+
+Create your own module that wraps `polytope/couchbase`: 
+**DO NOT** run `polytope/couchbase` directly in templates - always use your wrapper module that includes the volume.
+
+**IMPORTANT: Always create a wrapper module for Couchbase with a persistent volume!** Without a volume, all data will be lost when the container restarts.
+
+Do not specify service ports for Couchbase unless the user specifically tells you to. 
 
 ## Testing that the connection is working
 Python: bucket.ping()
@@ -24,9 +45,9 @@ Document type: this is determined by which collection the document is stored in.
 Documents are stored in collections. Ensure that you are storing each document in the correct collection. 
 
 ## Instructions for setting up the Couchbase init app
-When running a couchbase module you also need to run the cillers-init module for initialization. 
+Make sure the init module is added. **IMPORTANT Read all of thethe init blueprint documentation files in the .blueprints/init directory.** 
 
-**See cillers-init.md for complete setup instructions.**
+The init module should be run by the templates that run the couchbase module. 
 
 ### Couchbase-specific configuration
 <code type="yaml">

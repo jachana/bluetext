@@ -147,15 +147,17 @@ When a module calls another module, it passes values for parameters via the `arg
 Values can be supplied in multiple different ways:
 - Literal data: e.g. `foo`, `123`. `[false]`, `{foo: bar}` etc.
 - References to parameters (as defined in `params`): `pt.param my-param`
-- References to values: `pt.value my-value`.  Values are data (typically strings) that have been provided separately by the user.
-- References to secrets: `pt.secret my-secret`. Secrets are sensitive data (typically strings) that have been provided separately by the user.
+- References to values: `pt.value my-value`.  Values are data (typically strings) that have been provided separately by the user. **IMPORTANT** `pt.value` cannot be accessed in a `#pt-js` script. 
+- References to secrets: `pt.secret my-secret`. Secrets are sensitive data (typically strings) that have been provided separately by the user. **IMPORTANT** `pt.secret` cannot be accessed in a `#pt-js` script.
 - Interpolated strings: strings that contain references to params, values or secrets, e.g. `http://{pt.param domain}:{pt.value port}/foo?api-key={pt.secret my-secret-key}`
 - Code: TODO
 
 Arg values can be any data but _MUST_ match the type spec of the corresponding param in the referenced module.
 
 #### Example
-```
+
+**CORRECT**
+```yaml
 module: the-module-were-calling  # module defined elsewhere, with params matching the args below
 args:
     some-string-param: "hello world"      # plain string
@@ -165,6 +167,11 @@ args:
     some-param-3:
         foo: "interpolated string with a value: {pt.value foo}"
         bar: [pt.param bar, pt.secret baz] # data with inline references
+```
+
+**WRONG**
+```yaml
+    some-param: "#pt-js parseInt(pt.value('foo'))"    # This will throw an error since there is no pt.value property or function in a `#pt-js` script. 
 ```
 
 #### Param type DSL

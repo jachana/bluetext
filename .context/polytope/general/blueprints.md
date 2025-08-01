@@ -20,4 +20,4 @@ Always start with reading all the files in the `.blueprints/<Blueprint ID>/conte
 ## Source code boilerplate
 If the blueprint has a `/boilerplate` directory, use the boilerplate module to generate the initial code for the module. 
 
-`pt run --non-interactive "boilerplate{blueprint: <Blueprint ID>, path: my-module-code-root-path}"`
+`pt run --non-interactive "boilerplate{blueprint: <Blueprint ID>, target-path: my-module-code-root-path}"`

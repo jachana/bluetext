@@ -10,6 +10,16 @@ The cillers-init image handles:
 - Environment-specific configuration management
 - Connection handling and retry logic
 
+## Generate to following environment config file
+
+<code path="./conf/init/env.yaml">
+environments:
+  - dev
+  - test
+  - staging
+  - prod
+</code>
+
 ## Environment Variables
 
 ### Required

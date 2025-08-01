@@ -19,7 +19,7 @@ Try to provide default values for all parameters in the modules you write. Prefe
 In the polytope.yml file, all values that may change between deployment environment should be dynamically loaded from Polytope secrets and values, e.g. all ports, hostnames, and protocols should be stored as Polytope values and all usernames, passwords and api keys should be stored as Polytope secrets. All property values specified in a ServiceSpec or EnvVarSpec should be referenced as Polytope values, e.g. port: pt.value api_port. Ensure that no property value inside of a ServiceSpec of EnvVarSpec is hard coded.
 
 ## Correct type for args
-Make sure that modules get the correct type of parameters. When a module expects an int but gets a str, it will fail. Error example: Must be an integer (got "8079"). Polytope values and secrets are always of type str. So they need to be converted to the correct type using the pt-js mechanism with parseInt. E.g. `"#pt-js parseInt({pt.value port})"`. 
+Make sure that modules get the correct type of parameters. When a module expects an int but gets a str, it will fail. Error example: Must be an integer (got "8079"). Polytope values and secrets are always of type str.
 
 
 ## Hostnames
@@ -51,8 +51,8 @@ run:
 
 All services must be fault-tolerant and handle connection failures gracefully with retries.
 
-## Any services you write must be fault tolerant
-Don't assume that other services are always up and running. If a service is not available, your service should handle the error gracefully and retry later. This applies to all services, including databases, message queues, and other dependencies.
+## Code that depends on other services, must assume those services may be down
+All code that you generate must be resilient to services that the code depends on may be down, such as databases and message queues. These services may not have started yet, they could be temporary out of order, or they could be restarting. 
 
 ## Executables
 Ensure that all files to be executed are executable.

@@ -122,6 +122,9 @@ The top-level module uses the base-level module as `module`. It dereferences the
 This base-level module does everything else needed for the module to run properly. It exposes as params the values needed to convert from strings to other types, such as ints. It then converts those params to the appropriate types in the args values.
 
 ### Example
+
+✅ **CORRECT**:
+```yaml
 templates: 
   - id: stack
     run:
@@ -149,10 +152,59 @@ modules:
           port: "#pt-js parseInt(params['redpandaPort'])"
       admin-url: "http://{pt.value redpanda_host}:9644"
       port: "#pt-js parseInt(params['port'])"
+```
 
-Notice the the base level module dereferences the redpanda_host value since it's ok as a str. 
+Notice that the top-level module specifies the base-level module as it's parent module. 
+
+Notice the the base-level module dereferences the redpanda_host value since it's ok as a str. 
 
 Both of the port args are required by the polytope/redpanda!console to be of type int. 
 
-Notice that the conversion happens in a `#pt-js` script, in which the params are accessible in the `params` map. And notice that param keys are converted from snakecase and dashcase to camelcase. 
+Notice that the conversion happens in a `#pt-js` script, in which the module params are accessible in the `params` map. And notice that param keys are converted from snakecase and dashcase to camelcase. 
+
+**IMPORTANT `pt.value` is not available within `#pt-js` scripts, only `params`.**
+
+❌ **WRONG**:
+```yaml
+  expose-as: "#pt-js parseInt(pt.value('api_port'))" # There is no `value` property in the pt object within a #pt-js script.
+```
+
+❌ **WRONG**:
+```yaml
+modules:
+  - id: api
+    services:
+      - id: api
+        ports:
+          - port: 8888
+            protocol: http
+            expose-as: "#pt-js parseInt(params['api_port'])" # This will throw an error becuase there is no param 'api_port' specified for this module.
+```
+
+✅ **CORRECT**:
+```yaml
+modules:
+  - id: api
+    module: api-base
+    args:
+      - id: port
+        value: pt.value port 
+
+  - id: api-base
+    params:
+      - id: port
+        type: [default, str, "4000"]
+    env:
+      - id: port
+        value: 8888
+    services:
+      - id: api-base
+        ports:
+          - port: 8888
+            protocol: http
+            expose-as: "#pt-js parseInt(params['port'])"
+```
+
+
+
 
