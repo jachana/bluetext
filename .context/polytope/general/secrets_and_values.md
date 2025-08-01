@@ -100,15 +100,59 @@ modules:
     args: 
       ...
       cmd: "topic create {pt.value redpanda-topics}"
-          
-
         
 ## Sample executable file with default values and secrets
-
 Store all default values and secrets in an executable file `.values_and_secrets.defaults.sh`. This file should contain 
 set commands for all values and secrets that are referenced in the polytope.yml file with default values. 
 
 This enables the user to execute that file to set all values and secrets when initializing the project on a new machine. 
 
 Make sure the .secrets_and_values.sh file pattern is added to the .gitignore file, so the user can store real secrets and local variables that should not be checked in in that file.
+
+## Polytope values and secrets are stored as strings
+When dereferencing a Polytope value or secret in the `polytope.yml` file, the dereferenced type will always be a string, even if it was set to be an int. 
+
+So, when dereferencing a value or a secret in `polytope.yml` you need to use the following best-practice workaround: 
+Create two modules: one top-level module and a base-level module. 
+
+### Top-level module
+The top-level module uses the base-level module as `module`. It dereferences the needed Polytope values and passes them on to the base module as args. 
+
+### Base-level module
+This base-level module does everything else needed for the module to run properly. It exposes as params the values needed to convert from strings to other types, such as ints. It then converts those params to the appropriate types in the args values.
+
+### Example
+templates: 
+  - id: stack
+    run:
+      - redpanda-console
+
+modules: 
+  - id: redpanda-console
+    info: Redpanda Console web UI
+    module: redpanda-console-base
+    args:
+      port: pt.values redpanda_console_port
+      redpanda-port: pt.values redpanda_port
+
+  - id: redpanda-console-base
+    info: Redpanda Console web UI
+    module: polytope/redpanda!console
+    params:
+      - id: port
+        type: [default, str, "8080"]
+      - id: redpanda-port
+        type: [default, str, "9092"]
+    args:
+      brokers:
+        - host: pt.value redpanda_host
+          port: "#pt-js parseInt(params['redpandaPort'])"
+      admin-url: "http://{pt.value redpanda_host}:9644"
+      port: "#pt-js parseInt(params['port'])"
+
+Notice the the base level module dereferences the redpanda_host value since it's ok as a str. 
+
+Both of the port args are required by the polytope/redpanda!console to be of type int. 
+
+Notice that the conversion happens in a `#pt-js` script, in which the params are accessible in the `params` map. And notice that param keys are converted from snakecase and dashcase to camelcase. 
 

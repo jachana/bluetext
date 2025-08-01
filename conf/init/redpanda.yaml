@@ -1,0 +1,24 @@
+defaults:  # Applies to all topics unless overridden
+  partitions: 1
+  replication: 1
+  config:
+    retention.ms: 86400000  # 1 day default
+
+topics:
+  test123:
+    defaults:  # Per-topic defaults across all envs
+      partitions: 1
+      config:
+        cleanup.policy: delete
+        retention.ms: 86400000  # 1 day
+    env_settings:
+      staging:
+        partitions: 3
+        replication: 1
+        config:
+          retention.ms: 604800000  # 7 days
+      prod:
+        partitions: 6
+        replication: 1
+        config:
+          retention.ms: 604800000  # 7 days

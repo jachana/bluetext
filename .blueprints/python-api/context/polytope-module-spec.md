@@ -6,7 +6,7 @@ modules:
     module: polytope/python
     args:
       image: python:3.13-slim
-      code: { type: host, path: ./api }
+      code: { type: host, path: ./modules/api }
       cmd: bin/run
       services:
         - id: api

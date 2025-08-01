@@ -9,7 +9,7 @@ modules:
     args:
       id: frontend
       image: oven/bun:slim # specify an image with bun
-      code: { type: host, path: frontend } # mount the `frontend` directory (assuming the code is there)
+      code: { type: host, path: ./modules/frontend } # mount the `modules/frontend` directory (assuming the code is there)
       cmd: pt.param cmd
       env:
         - { name: PORT, value: pt.value frontend-port }

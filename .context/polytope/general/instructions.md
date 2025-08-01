@@ -7,14 +7,20 @@ Keep names simple, and don't set other ids in templates unless you have multiple
 
 Don't needlessly add template params. The default params on the module should be sufficient for most use cases.
 
-## Adding modules
-Whenever adding a module to the polytope.yml file, first check if there is a Blueprint for this type of module. **IMPORTANT: If the Blueprint includes a boilerplate directory, use the boilerplate to generate the initial code for the module!**
+## Adding modules and templates
+Whenever adding a module or template to the polytope.yml file, first check if there is a Blueprint for this type of module or template. **IMPORTANT: If the Blueprint includes a boilerplate directory, use the boilerplate to generate the initial code for the module or template!**
+
+Module code should be placed under the `./modules/<module-id>` directory.
 
 ## Give modules sensible parameters
 Try to provide default values for all parameters in the modules you write. Prefer parameters to 'hard-coding' values in the module, especially if they're repeated or can be expected to change.
 
 ## No hard coded property values that the user may want to change between deployment environments
 In the polytope.yml file, all values that may change between deployment environment should be dynamically loaded from Polytope secrets and values, e.g. all ports, hostnames, and protocols should be stored as Polytope values and all usernames, passwords and api keys should be stored as Polytope secrets. All property values specified in a ServiceSpec or EnvVarSpec should be referenced as Polytope values, e.g. port: pt.value api_port. Ensure that no property value inside of a ServiceSpec of EnvVarSpec is hard coded.
+
+## Correct type for args
+Make sure that modules get the correct type of parameters. When a module expects an int but gets a str, it will fail. Error example: Must be an integer (got "8079"). Polytope values and secrets are always of type str. So they need to be converted to the correct type using the pt-js mechanism with parseInt. E.g. `"#pt-js parseInt({pt.value port})"`. 
+
 
 ## Hostnames
 The hostnames that web apps need, must be based on Polytope values, so they can be dynamically set to different values in deployment different environments.
@@ -99,7 +105,7 @@ modules:
     args:
       id: my-app
       image: python:3.13-slim
-      code: { type: host, path: . }
+      code: { type: host, path: ./modules/api }
       cmd: pt.param cmd
 
   - id: api-test
