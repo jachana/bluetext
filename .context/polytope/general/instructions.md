@@ -8,7 +8,7 @@ Keep names simple, and don't set other ids in templates unless you have multiple
 Don't needlessly add template params. The default params on the module should be sufficient for most use cases.
 
 ## Adding modules and templates
-Whenever adding a module or template to the polytope.yml file, first check if there is a Blueprint for this type of module or template. **IMPORTANT: If the Blueprint includes a boilerplate directory, use the boilerplate to generate the initial code for the module or template!**
+Whenever adding a module or template to the polytope.yml file, first check if there is a Blueprint for this type of module or template. **IMPORTANT: If the Blueprint includes a `boilerplate.md` file, use the `boilerplate` module to generate the initial code for the module or template!**
 
 Module code should be placed under the `./modules/<module-id>` directory.
 
@@ -46,7 +46,7 @@ run:
 run:
   - redpanda
   - api  # Runs concurrently!
-  - frontend  # All services start together
+  - web-app  # All services start together
 ```
 
 All services must be fault-tolerant and handle connection failures gracefully with retries.
@@ -89,7 +89,7 @@ templates:
 Try to stick to the built-in modules. If there's no suitable module for what you're trying to achieve, create a custom module that calls `polytope/container`.
 
 ## Polytope file layout
-Prefer creating modules for the different execution units of your application, e.g. frontend, api, redpanda, etc. Avoid putting module data directly in templates if it makes sense to be able to run the module directly.
+Prefer creating modules for the different execution units of your application, e.g. web-app, api, redpanda, etc. Avoid putting module data directly in templates if it makes sense to be able to run the module directly.
 
 ## Write stuff to be run in Polytope
 Want to create a test script? Put it in a separate directory and create a module for it (is it a shell script? just use `polytope/container` with `image: alpine` or whatever). Ditto for any other runnable units of code!

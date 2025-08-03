@@ -7,17 +7,22 @@ modules:
       - id: target-path
         info: Path relative to the repo root where the module's code will be created
         type: str
-      - id: blueprint
-        info: Blueprint to use for the module
-        type: [enum, frontend, python-api]
+      - id: source-path
+        info: Git repository URL to clone boilerplate code from
+        type: str
     args:
-      image: ubuntu
+      image: alpine:latest
       cmd:
         - sh
         - -c
         - |
           set -eu
-          echo "Creating boilerplate code from the $BLUEPRINT blueprint at $TARGET_PATH..."
+          echo "Installing git..."
+          apk add --no-cache git
+          
+          echo "Creating boilerplate code from $SOURCE_PATH at $TARGET_PATH..."
+          
+          # Check target path
           if [ -d "$TARGET_PATH" ]; then
             if [ "$(ls -A "$TARGET_PATH")" ]; then
               echo "ERROR: The target path '$TARGET_PATH' already exists and is not empty. Please choose a different path."
@@ -26,8 +31,21 @@ modules:
           else
             mkdir -p "$TARGET_PATH"
           fi
-          cp -r .blueprints/$BLUEPRINT/boilerplate/* "$TARGET_PATH"
-          echo "Done!"
+          
+          # Clone repository to temporary location
+          echo "Cloning boilerplate from $SOURCE_PATH..."
+          TEMP_DIR="/tmp/boilerplate-$$"
+          git clone --depth 1 "$SOURCE_PATH" "$TEMP_DIR"
+          
+          # Copy contents (excluding .git directory)
+          echo "Copying boilerplate files to $TARGET_PATH..."
+          cp -r "$TEMP_DIR"/* "$TARGET_PATH/" 2>/dev/null || true
+          cp -r "$TEMP_DIR"/.[!.]* "$TARGET_PATH/" 2>/dev/null || true
+          
+          # Clean up
+          rm -rf "$TEMP_DIR"
+          
+          echo "Done! Boilerplate code created at $TARGET_PATH"
       workdir: /repo
       mounts:
         - path: /repo
@@ -37,9 +55,9 @@ modules:
       env:
         - name: TARGET_PATH
           value: pt.param target-path
-        - name: BLUEPRINT
-          value: pt.param blueprint
-
+        - name: SOURCE_PATH
+          value: pt.param source-path
+          
   - id: add-package-python
     info: Adds uv packages in a Python module
     module: polytope/container
@@ -111,4 +129,3 @@ modules:
       env:
         - name: PACKAGES
           value: pt.param packages
-

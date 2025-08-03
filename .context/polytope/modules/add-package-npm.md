@@ -19,13 +19,13 @@ pt run --non-interactive "add-package-npm{packages: '<packages>', module-code-pa
 
 ```bash
 # Add a single package
-pt run --non-interactive "add-package-npm{packages: 'react', module-code-path: 'frontend'}"
+pt run --non-interactive "add-package-npm{packages: 'react', module-code-path: 'web-app'}"
 
 # Add multiple packages
-pt run --non-interactive "add-package-npm{packages: 'react react-dom', module-code-path: 'frontend'}"
+pt run --non-interactive "add-package-npm{packages: 'react react-dom', module-code-path: 'web-app'}"
 
 # Add packages with specific versions
-pt run --non-interactive "add-package-npm{packages: 'react@18.2.0 react-dom@18.2.0', module-code-path: 'frontend'}"
+pt run --non-interactive "add-package-npm{packages: 'react@18.2.0 react-dom@18.2.0', module-code-path: 'web-app'}"
 ```
 
 ## Requirements

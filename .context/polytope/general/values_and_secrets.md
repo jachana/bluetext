@@ -81,13 +81,13 @@ modules:
             - { name: COUCHBASE_USERNAME, value: pt.secret couchbase_username }
             - { name: COUCHBASE_PASSWORD, value: pt.secret couchbase_password }
 
-    - id: frontend
+    - id: web-app
       args:
         ...
         env: 
             ...
             - { name: API_PROTOCOL, value: pt.value api_protocol }
-            - { name: API_HOST, value: pt.value api_host }
+            - { name: API_HOST, value: pt.value api_external_host }
             - { name: API_PORT, value: pt.value api_port }
 
   - id: redpanda-console
@@ -95,11 +95,6 @@ modules:
       ...
       env: [{ name: REDPANDA_BROKERS, value: "{pt.value redpanda-host}:{pt.value redpanda-port}" }]
 
-
-  - id: redpanda-create-topics
-    args: 
-      ...
-      cmd: "topic create {pt.value redpanda-topics}"
         
 ## Sample executable file with default values and secrets
 Store all default values and secrets in an executable file `.values_and_secrets.defaults.sh`. This file should contain 

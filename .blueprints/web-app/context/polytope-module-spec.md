@@ -1,23 +1,23 @@
-Example of a Polytope frontend module:
+Example of a Polytope web-app module:
 ```yaml
 modules:
-  - id: frontend
+  - id: web-app
     params:
       - id: cmd
         type: [default, str, ./bin/run] # default to the run script
     module: polytope/node
     args:
-      id: frontend
+      id: web-app
       image: oven/bun:slim # specify an image with bun
-      code: { type: host, path: ./modules/frontend } # mount the `modules/frontend` directory (assuming the code is there)
+      code: { type: host, path: ./modules/web-app } # mount the `modules/web-app` directory (assuming the code is there)
       cmd: pt.param cmd
       env:
-        - { name: PORT, value: pt.value frontend-port }
+        - { name: PORT, value: pt.value web-app-port }
       restart:
         policy: always # always restart on failure
       services:
-        - id: frontend
-          ports: [{protocol: http, port: pt.value frontend-port, expose-as: pt.value frontend-port}]
+        - id: web-app
+          ports: [{protocol: http, port: pt.value web-app-port, expose-as: pt.value web-app-port}]
       mounts:
         # Use volumes to cache dependencies:
         - { path: /root/.cache/, source: { type: volume, id: dependency-cache }}
