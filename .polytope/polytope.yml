@@ -42,6 +42,13 @@ modules:
           cp -r "$TEMP_DIR"/* "$TARGET_PATH/" 2>/dev/null || true
           cp -r "$TEMP_DIR"/.[!.]* "$TARGET_PATH/" 2>/dev/null || true
           
+          # Remove README and LICENSE files from root directory if they exist
+          echo "Removing README and LICENSE files from root directory..."
+          rm -f "$TARGET_PATH"/README*
+          rm -f "$TARGET_PATH"/LICENSE*
+          rm -f "$TARGET_PATH"/readme*
+          rm -f "$TARGET_PATH"/license*
+          
           # Clean up
           rm -rf "$TEMP_DIR"
           
