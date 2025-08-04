@@ -1,8 +1,22 @@
-# bluetext MCP Server
+# Bluetext MCP Server
 
-Agentic coding assistant for systems built on Polytope
+Agentic coding assistant for systems built on Polytope, optimized for use with Cline (https://cline.bot).
 
-This is a TypeScript-based MCP server that provides access to Bluetext documentation resources. It serves documentation files from the polytope, code-gen-modules, and blueprints directories as MCP resources.
+The Bluetext MCP server provides documentation on our framework for how to build enterprise-grade systems, code generation tools, and blueprints on how to structure specific types of functionality, services and apps. 
+
+Bluetext systems run on Polytope (https://polytope.com) which is a container orchestration platform that runs all software components in containers, e.g. Docker on your laptop and Kubernetes in the cloud. 
+
+## Prerequisite: Polytope
+
+You need Polytope installed on your computer to work with Bluetext. Here are instructions on how to install it: https://docs.cillers.com/polytope
+
+Polytope depends on Docker in development mode, so also make sure to have Docker installed. We recommend OrbStack (https://orbstack.dev) for an optimized experience on Mac. 
+
+## Installation
+
+To use with Cline, clone this repo to your local machine and add use the Cline MCP manager to add it.
+
+Blueprint should also work well with other good MCP-powered agentic coding tools. 
 
 ## Features
 
@@ -35,29 +49,20 @@ For development with auto-rebuild:
 npm run watch
 ```
 
-## Installation
+## Sample Prompts
 
-To use with Claude Desktop, add the server config:
+### React Web App
+```
+Get the polytope documentation and a list of all available blueprints from the bluetext mcp server.
 
-On MacOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "bluetext": {
-      "command": "/path/to/bluetext/build/index.js"
-    }
-  }
-}
+Generate a Polytope React app that runs on port 3000 by default.
 ```
 
-### Debugging
 
-Since MCP servers communicate over stdio, debugging can be challenging. We recommend using the [MCP Inspector](https://github.com/modelcontextprotocol/inspector), which is available as a package script:
+### Python API Server
 
-```bash
-npm run inspector
 ```
+Get the polytope documentation and a list of all available blueprints from the bluetext mcp server.
 
-The Inspector will provide a URL to access debugging tools in your browser.
+Generate a Polytope Python api that runs on port 4000 by default.
+```
