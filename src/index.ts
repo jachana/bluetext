@@ -52,6 +52,21 @@ function getBlueprints(): string[] {
 }
 
 /**
+ * Get the list of available standard modules
+ */
+function getStandardModules(): string[] {
+  try {
+    const standardModulesPath = join(PROJECT_ROOT, "polytope", "standard-modules");
+    const moduleFiles = readdirSync(standardModulesPath);
+    return moduleFiles
+      .filter(file => file.endsWith('.md'))
+      .map(file => file.replace('.md', ''));
+  } catch (error) {
+    return [];
+  }
+}
+
+/**
  * Create an MCP server with capabilities for resources only.
  * This server provides access to documentation files.
  */
@@ -70,6 +85,7 @@ const server = new Server(
 /**
  * Handler for listing available documentation resources.
  * Provides access to:
+ * - /intro (intro.md) - Main Bluetext documentation overview
  * - /polytope-docs (polytope/intro.md)
  * - /code-gen-modules/<module-id> (code-gen-modules/<module-id>.md)
  * - /blueprints (blueprints/intro.md)
@@ -77,6 +93,17 @@ const server = new Server(
  */
 server.setRequestHandler(ListResourcesRequestSchema, async () => {
   const resources = [];
+
+  // Add main intro resource
+  const mainIntroPath = join(PROJECT_ROOT, "intro.md");
+  if (existsSync(mainIntroPath)) {
+    resources.push({
+      uri: "bluetext://intro",
+      mimeType: "text/markdown",
+      name: "Bluetext Documentation",
+      description: "Main overview and quick start guide for Bluetext framework"
+    });
+  }
 
   // Add polytope docs resource
   const polytopeDocsPath = join(PROJECT_ROOT, "polytope", "intro.md");
@@ -125,16 +152,32 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
     }
   }
 
+  // Add standard modules
+  const standardModules = getStandardModules();
+  for (const moduleId of standardModules) {
+    const modulePath = join(PROJECT_ROOT, "polytope", "standard-modules", `${moduleId}.md`);
+    if (existsSync(modulePath)) {
+      resources.push({
+        uri: `bluetext://polytope/standard-modules/${moduleId}`,
+        mimeType: "text/markdown",
+        name: `Polytope Module: polytope/${moduleId}`,
+        description: `Documentation for built-in Polytope module polytope/${moduleId}`
+      });
+    }
+  }
+
   return { resources };
 });
 
 /**
  * Handler for reading the contents of documentation resources.
  * Supports the following URI patterns:
+ * - bluetext://intro
  * - bluetext://polytope-docs
  * - bluetext://code-gen-modules/<module-id>
  * - bluetext://blueprints
  * - bluetext://blueprints/<blueprint-id>
+ * - bluetext://polytope/standard-modules/<module-id>
  */
 server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   const uri = request.params.uri;
@@ -149,7 +192,9 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   let content: string;
 
   try {
-    if (resourcePath === "polytope-docs") {
+    if (resourcePath === "intro") {
+      filePath = join(PROJECT_ROOT, "intro.md");
+    } else if (resourcePath === "polytope-docs") {
       filePath = join(PROJECT_ROOT, "polytope", "intro.md");
     } else if (resourcePath === "blueprints") {
       filePath = join(PROJECT_ROOT, "blueprints", "intro.md");
@@ -159,6 +204,9 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     } else if (resourcePath.startsWith("blueprints/")) {
       const blueprintId = resourcePath.replace("blueprints/", "");
       filePath = join(PROJECT_ROOT, "blueprints", blueprintId, "intro.md");
+    } else if (resourcePath.startsWith("polytope/standard-modules/")) {
+      const moduleId = resourcePath.replace("polytope/standard-modules/", "");
+      filePath = join(PROJECT_ROOT, "polytope", "standard-modules", `${moduleId}.md`);
     } else {
       throw new Error(`Unknown resource path: ${resourcePath}`);
     }

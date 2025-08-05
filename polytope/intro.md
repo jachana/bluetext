@@ -16,10 +16,29 @@ When adding a Polytope module for which there is a Blueprint, always use the MCP
 ### Modules
 - Modules are the core building blocks of Polytope
 - Each step runs a module that interfaces with Polytope's runner API
-- Polytope provides a set of built-in modules for common use cases
+- Polytope provides a set of built-in standard modules for common use cases
 - Custom modules can be defined using the same interface
 - Modules typically accept parameter input conforming to specified types
 - Modules can run code snippets directly or wrap other modules
+
+#### Standard Modules
+Polytope includes several built-in standard modules that are available even though they are not defined in your `polytope.yml` file. These modules should be referenced with a `polytope/` prefix (e.g., `polytope/redpanda` where the module-id is `redpanda` and the module-reference is `polytope/redpanda`).
+
+When you need to understand how a specific standard module functions, use the MCP server to fetch the relevant standard module resource with the URI `bluetext://polytope/standard-modules/<module-id>`.
+
+**Available Standard Modules:**
+
+| Module ID | Summary |
+|-----------|---------|
+| `redpanda` | Runs a single Redpanda node in development mode with Kafka-compatible streaming |
+| `redpanda-console` | Runs the Redpanda Console web UI for managing and monitoring Kafka/Redpanda clusters |
+| `redpanda-connect` | Runs Redpanda Connect for building real-time data streaming and transformation pipelines |
+| `postgres` | Runs a PostgreSQL database container with full configuration options |
+| `postgres-simple` | Runs a PostgreSQL container with minimal configuration for development use |
+| `python` | Runs a Python container with full configuration options for applications and services |
+| `python-simple` | Runs a Python container with minimal configuration for simple applications |
+| `container` | Runs a Docker container with full configuration options - the foundational module |
+| `node` | Runs a Node.js container with full configuration options for JavaScript applications |
 
 ### Templates
 - Templates specify full jobs
@@ -59,7 +78,7 @@ The following keys are supported when defining a module:
 - `code`: Only provided for modules that run code directly. Not compatible with `args` or `module`. Inline code written in Clojure or JavaScript that runs against the module API.
 
 #### Example
-```
+```yaml
 # Basic module that prints a user-defined message with a default value:
 info: Prints a message to the logs.
 id: hello-world
@@ -273,7 +292,39 @@ run:
 
 # Instructions to follow when generating code that should run on Polytope
 
-## Consice template section
+## File structure and ordering
+Always place the `templates` section at the top of the `polytope.yml` file, above the `modules` section. This makes it easy for developers to see which templates are available. 
+
+✅ **CORRECT**:
+```yaml
+templates:
+  - id: stack
+    run:
+      - api
+      - database
+
+modules:
+  - id: api
+    module: polytope/python
+    # ... module definition
+  - id: database
+    module: polytope/postgres
+    # ... module definition
+```
+
+❌ **WRONG**:
+```yaml
+modules:
+  - id: api
+    # ... module definition
+
+templates:  # Templates should come first!
+  - id: stack
+    run:
+      - api
+```
+
+## Concise template section
 Make the template section of the polytope.yml file as short as possible. Define modules under the modules section or use pre-existing Polytope modules and refer to them from the template run section.
 
 Keep names simple, and don't set other ids in templates unless you have multiple calls to the same module.
@@ -343,6 +394,11 @@ templates:
 
 ✅ **CORRECT**:
 ```yaml
+templates:
+  - id: stack
+    run:
+      - redpanda  # Uses your wrapper with volume
+
 modules:
   - id: redpanda
     module: polytope/redpanda
@@ -351,11 +407,6 @@ modules:
         type: volume
         scope: project # ALWAYS use project scope for persistent data! The default scope is job, which is ephemeral.
         id: redpanda-data
-
-templates:
-  - id: stack
-    run:
-      - redpanda  # Uses your wrapper with volume
 ```
 
 ## Module inheritance
@@ -659,878 +710,138 @@ definitions:
 
 ```
 
-# Polytope Standard Modules
 
-This file contains module definitions for some built-in Polytope modules. Use these if you can.
+# Values and Secrets
 
-# polytope/redpanda
+Polytope provides a built-in key-value store for configuration data through **values** (non-sensitive) and **secrets** (sensitive). This enables environment-specific configuration without hardcoding values in `polytope.yml`.
 
-```yml
-info: Runs a single Redpanda node in dev mode.
-id: redpanda
-params:
-- id: image
-  info: The container image to use.
-  name: Container Image
-  type: [default, str, 'docker.redpanda.com/redpandadata/redpanda:v23.3.11']
-- id: data-volume
-  info: Volume to use for data.
-  name: Data Volume
-  type: [maybe, mount-source]
-- id: log-level
-  info: The default log level.
-  name: Log level
-  type:
-  - default
-  - [enum, trace, debug, info, warn, error]
-  - info
-- id: restart
-  info: Restart policy for the containers.
-  name: Restart policy
-  type:
-  - default
-  - policy: [enum, always, on-failure]
-    max-restarts: [maybe, int]
-  - {policy: always, max-restarts: null}
-module: polytope/container
-args:
-  id: redpanda
-  image: pt.param image
-  restart: pt.param restart
-  cmd:
-  - redpanda
-  - start
-  - --kafka-addr=0.0.0.0:9092
-  - --advertise-kafka-addr=redpanda:9092
-  - --pandaproxy-addr=0.0.0.0:8082
-  - --advertise-pandaproxy-addr=redpanda:8082
-  - --rpc-addr=0.0.0.0:33145
-  - --advertise-rpc-addr=redpanda:33145
-  - --schema-registry-addr=0.0.0.0:8081
-  - --mode=dev-container
-  - --smp=1
-  - "--default-log-level={pt.param log-level}"
-  mounts: |-
-    #pt-clj (when-let [v (:data-volume params)]
-      [{:path "/var/lib/redpanda/data", :source v}])
-  services:
-  - id: redpanda
-    ports:
-    - {port: 9092, protocol: tcp, label: kafka}
-    - {port: 8082, protocol: http, label: pandaproxy}
-    - {port: 8081, protocol: http, label: schema-registry}
-    - {port: 9644, protocol: http, label: admin-api}
-    - {port: 33145, protocol: tcp, label: rpc}
+## Key Principles
+
+### 1. Use Values and Secrets for All Environment-Specific Data
+**CRITICAL**: All configuration that varies between environments must use Polytope values and secrets:
+- **Values**: Ports, hostnames, protocols, URLs, feature flags
+- **Secrets**: Passwords, API keys, tokens, certificates
+
+### 2. No Hardcoded Configuration
+All property values in `ServiceSpec` and `EnvVarSpec` should reference Polytope values/secrets:
+
+❌ **WRONG**:
+```yaml
+env:
+  - name: API_PORT
+    value: 8080  # Hardcoded!
 ```
-
-# polytope/redpanda!console
-
-```yml
-info: Runs the Redpanda console.
-id: console
-params:
-- id: image
-  info: The image to use.
-  name: Image
-  type: [default, str, 'docker.redpanda.com/redpandadata/console:v2.4.5']
-- id: container-id
-  info: The ID to give the spawned container.
-  name: Container ID
-  type: [default, str, redpanda-console]
-- id: brokers
-  info: List of host-port pairs to use to connect to the Kafka/Redpanda cluster.
-  name: Brokers
-  type:
-  - default
-  - - {host: str, port: int}
-  - - {host: redpanda, port: 9092}
-- id: schema-registry-url
-  info: Schema Registry to connect to.
-  name: Schema Registry URL
-  type: [maybe, str]
-- id: admin-url
-  info: Redpanda admin URL to connect to.
-  name: Redpanda admin URL
-  type: [maybe, str]
-- id: log-level
-  info: The log level.
-  name: Log level
-  type:
-  - default
-  - [enum, debug, info, warn, error, fatal]
-  - info
-- id: port
-  info: The console HTTP port.
-  name: HTTP Port
-  type: [default, int, 8079]
-- id: restart
-  info: Restart policy for the container.
-  name: Restart policy
-  type:
-  - default
-  - policy: [enum, always, on-failure]
-    max-restarts: [maybe, int]
-  - {policy: always, max-restarts: null}
-module: polytope/container
-args:
-  image: pt.param image
-  id: pt.param container-id
-  env:
-  - {name: CONFIG_FILEPATH, value: /etc/redpanda-console-config.yaml}
-  mounts:
-  - path: /etc/redpanda-console-config.yaml
-    source:
-      type: string
-      data: |-
-        #pt-clj (let [brokers (clojure.string/join
-                       (map
-                       (fn
-                       [{:keys [host port]}]
-                       (str host \: port))
-                       (:brokers params)))]
-          (str
-           "kafka:\n"
-           "  brokers: [\""
-           brokers
-           "\"]\n"
-           "server:\n"
-           "  listenPort: "
-           (:port params)
-           "\n"
-           (when-let [url (:schema-registry-url params)]
-            (str
-             "  schemaRegistry:\n"
-             "    enabled: true\n"
-             "    urls: [\""
-             url
-             "\"]\n"))
-           (when-let [url (:admin-url params)]
-            (str
-             "redpanda:\n"
-             "  adminApi:\n"
-             "    enabled: true\n"
-             "    urls: [\""
-             url
-             "\"]\n"))
-           "logger:\n"
-           "  level: "
-           (:log-level params)
-           "\n"))
-  restart: pt.param restart
-  services:
-  - id: redpanda-console
-    ports:
-    - {port: pt.param port, protocol: http}
-
-```
-
-# polytope/redpanda!connect
-
-```yml
-info: Runs Redpanda connect.
-id: connect
-params:
-- id: image
-  info: The image to use.
-  name: Image
-  type: [default, str, docker.redpanda.com/redpandadata/connect]
-- id: container-id
-  info: The ID to give the spawned container.
-  name: Container ID
-  type: [default, str, redpanda-connect]
-- {id: config-file, info: Redpanda connect config file., name: Config file, type: mount-source}
-- id: restart
-  info: Restart policy for the container.
-  name: Restart policy
-  type:
-  - default
-  - policy: [enum, always, on-failure]
-    max-restarts: [maybe, int]
-  - {policy: always, max-restarts: null}
-- id: port
-  info: The console HTTP port.
-  name: HTTP Port
-  type: [default, int, 4195]
-module: polytope/container
-args:
-  image: pt.param image
-  id: pt.param container-id
-  mounts:
-  - {path: /connect.yaml, source: pt.param config-file}
-  restart: pt.param restart
-  services:
-  - id: redpanda-connect
-    ports:
-    - {port: pt.param port, protocol: http}
-```
-
-# polytope/postgres
-
-```yml
-info: Runs a PostgreSQL container.
-id: postgres
-params:
-- id: image
-  info: The Docker image to run.
-  name: Image
-  type: [default, docker-image, 'public.ecr.aws/docker/library/postgres:16.2']
-- id: container-id
-  info: The ID to use for the container.
-  name: Container ID
-  type: [default, str, postgres]
-- id: data-volume
-  name: Data Volume
-  info: The volume (if any) to mount for data.
-  type: [maybe, mount-source]
-- id: service-id
-  info: The ID to use for the service.
-  name: Service ID
-  type: [default, str, postgres]
-- id: env
-  info: Environment variables to pass to the server.
-  name: Environment variables
-  type:
-  - maybe
-  - [env-var]
-- id: cmd
-  info: The command to run in the container. If unspecified, runs the PostgreSQL server.
-  name: Command
-  type:
-  - maybe
-  - - either
-    - str
-    - - [maybe, str]
-- id: restart
-  info: What policy to apply on restarting containers that fail.
-  name: Restart policy
-  type:
-  - maybe
-  - policy: [enum, always, on-failure]
-    max-restarts: [maybe, int]
-- id: scripts
-  info: SQL files to run when initializing the DB.
-  name: Scripts
-  type:
-  - maybe
-  - [mount-source]
-module: polytope/container
-args:
-  image: pt.param image
-  id: pt.param container-id
-  mounts: |-
-    #pt-clj (concat
-     (when-let [v (:data-volume params)]
-      [{:path "/var/lib/postgresql/data", :source v}])
-     (for [s (:scripts params)]
-      {:path   "/docker-entrypoint-initdb.d/data-backup.sql"
-       :source s}))
-  env: pt.param env
-  tty: '#pt-clj (empty? (:scripts params))'
-  restart: pt.param restart
-  services:
-  - id: pt.param service-id
-    ports:
-    - {protocol: tcp, port: 5432}
-```
-
-# polytope/postgres!simple
-
-```yml
-info: Runs a PostgreSQL container with minimal configuration.
-id: simple
-params:
-- id: image
-  info: The Docker image to run.
-  name: Image
-  type: [default, docker-image, 'postgres:15.4']
-- id: scripts
-  info: SQL files to run when initializing the DB.
-  name: Scripts
-  type:
-  - maybe
-  - [mount-source]
-- id: data-volume
-  name: Data Volume
-  info: The volume (if any) to mount for data.
-  type: [maybe, mount-source]
-- id: restart
-  info: What policy to apply on restarting containers that fail.
-  name: Restart policy
-  type:
-  - maybe
-  - policy: [enum, always, on-failure]
-    max-restarts: [maybe, int]
-module: polytope/container
-args:
-  image: pt.param image
-  id: pt.param id
-  mounts: |-
-    #pt-clj (concat
-     (when-let [v (:data-volume params)]
-      [{:path "/var/lib/postgresql/data", :source v}])
-     (for [s (:scripts params)]
-      {:path   "/docker-entrypoint-initdb.d/data-backup.sql"
-       :source s}))
-  env:
-  - {name: POSTGRES_HOST_AUTH_METHOD, value: trust}
-  tty: '#pt-clj (empty? (:scripts params))'
-  restart: pt.param restart
-  services:
-  - id: postgres
-    ports:
-    - {protocol: tcp, port: 5432}
-```
-
-# polytope/python
-
-```yml
-info: Runs a Python container.
-id: python
-params:
-- id: image
-  info: The container image to use.
-  name: Image
-  type: [default, str, 'public.ecr.aws/docker/library/python:3.12.2-slim-bookworm']
-- id: code
-  info: Optional source code directory to mount into the container.
-  name: Code
-  type: [maybe, mount-source]
-- id: cmd
-  info: The command to run. Runs a Python shell if left blank.
-  name: Command
-  type:
-  - maybe
-  - - either
-    - str
-    - [str]
-- id: env
-  info: Environment variables for the container.
-  name: Environment variables
-  type:
-  - maybe
-  - - [maybe, env-var]
-- id: requirements
-  info: Optional requirements.txt file to install before running the command.
-  name: Requirements file
-  type: [maybe, mount-source]
-- id: services
-  info: Ports in the container to expose as services.
-  name: Services
-  type:
-  - maybe
-  - [service-spec]
-- id: id
-  info: The container's ID/name.
-  name: ID
-  type: [maybe, id]
-- id: mounts
-  info: Additional files or directories to mount into the container.
-  name: Mounts
-  type:
-  - maybe
-  - - - maybe
-      - {source: mount-source, path: absolute-path}
-- id: restart
-  info: What policy to apply on restarting containers that fail.
-  name: Restart policy
-  type:
-  - maybe
-  - policy: [enum, always, on-failure]
-    max-restarts: [maybe, int]
-module: polytope/container
-args:
-  cmd: |-
-    #pt-clj (if (:requirements params)
-      (if (or
-           (nil? (:cmd params))
-           (string? (:cmd params)))
-        (str
-         "sh -c 'pip install -r /requirements.txt; "
-         (or (:cmd params) "python")
-         "'")
-        (str
-         "sh -c 'pip install -r /requirements.txt; "
-         (str/join " " (:cmd params))
-         "'"))
-      (:cmd params))
-  env: pt.param env
-  services: pt.param services
-  id: pt.param id
-  image: pt.param image
-  mounts: |-
-    #pt-clj (vec
-     (concat
-     (when-let [code (:code params)]
-      [{:path "/app", :source code}])
-     (when-let [reqs (:requirements params)]
-      [{:path "/requirements.txt", :source reqs}])
-     (:mounts params)))
-  restart: pt.param restart
-  workdir: /app
-```
-
-# polytope/python!simple
-
-```yml
-info: Runs a Python container with minimal configuration.
-id: simple
-params:
-- id: code
-  info: Optional source code directory to mount into the container.
-  name: Code
-  type: [maybe, mount-source]
-- id: cmd
-  info: The command to run. Runs a Python shell if left blank.
-  name: Command
-  type: [maybe, str]
-- id: env
-  info: Environment variables for the container.
-  name: Environment variables
-  type:
-  - maybe
-  - [env-var]
-- id: services
-  info: Ports in the container to expose as services.
-  name: Services
-  type:
-  - maybe
-  - - {id: str, port: int}
-module: polytope/container
-args:
-  cmd: pt.param cmd
-  env: pt.param env
-  services: |-
-    #pt-clj (map
-     (fn
-     [{:keys [id port]}]
-     {:id    id
-     :ports [{:port port, :protocol :http}]})
-     (:services params))
-  image: python:3.11
-  update-image: false
-  mounts: |-
-    #pt-clj (vec
-     (concat
-     (when-let [code (:code params)]
-      [{:path "/app", :source code}])
-     (when-let [reqs (:requirements params)]
-      [{:path "/requirements", :source reqs}])))
-  workdir: /app
-```
-
-# polytope/container
-
-```yml
-info: Runs a Docker container.
-id: container
-params:
-- {id: image, info: The Docker image to run., name: Image, type: docker-image}
-- id: id
-  info: The container's ID/name.
-  name: ID
-  type: [maybe, id]
-- id: cmd
-  info: The command to run in the container.
-  name: Command
-  type:
-  - maybe
-  - - either
-    - str
-    - - [maybe, str]
-- id: mounts
-  info: Code or files to mount into the container.
-  name: Mounts
-  type:
-  - maybe
-  - - - maybe
-      - {source: mount-source, path: absolute-path}
-- id: env
-  info: Environment variables for the container.
-  name: Environment variables
-  type:
-  - maybe
-  - - [maybe, env-var]
-- id: workdir
-  info: The container's working directory.
-  name: Working directory
-  type: [maybe, absolute-path]
-- id: entrypoint
-  info: The container's entrypoint.
-  name: Entrypoint
-  type:
-  - maybe
-  - - either
-    - str
-    - - [maybe, str]
-- id: no-stdin
-  info: Whether to keep the container's stdin closed.
-  name: Non-interactive
-  type: [default, bool, false]
-- id: tty
-  info: Whether to allocate a pseudo-TTY for the container.
-  name: TTY
-  type: [default, bool, true]
-- id: services
-  info: Ports in the container to expose as services.
-  name: Services
-  type:
-  - maybe
-  - [service-spec]
-- id: datasets
-  info: Paths in the container to store as datasets upon termination.
-  name: Datasets
-  type:
-  - maybe
-  - - {path: absolute-path, sink: dataset-sink}
-- id: user
-  info: The user (name or UID) to run commands in the container as.
-  name: User
-  type:
-  - maybe
-  - [either, int, str]
-- id: restart
-  info: What policy to apply on restarting containers that fail.
-  name: Restart policy
-  type:
-  - maybe
-  - policy:
-    - maybe
-    - [enum, never, always, on-failure]
-    max-restarts: [maybe, int]
-- id: scaling
-  info: How many replicas to create.
-  name: Replicas
-  type: [maybe, int]
-- id: update-image
-  info: Image update policy.
-  name: Update image
-  type: [default, bool, false]
-- id: instance-type
-  info: The instance type to run the container on.
-  name: Instance type
-  type: [maybe, instance-type]
-- id: resources
-  info: The resources to allocate for the container.
-  name: Resources
-  type:
-  - maybe
-  - cpu:
-      request: [maybe, num]
-      limit: [maybe, num]
-    memory:
-      request: [maybe, data-size]
-      limit: [maybe, data-size]
-code: |-
-  #pt-clj (let [spec (merge
-              (dissoc params :services :datasets)
-              (when-let [replicas (:scaling params)]
-               {:scaling {:replicas replicas, :type "manual"}}))
-        id   (pt/spawn spec)]
-    (pt/await-started
-     {:ref id, :type "deployment"})
-    (doseq [service (:services params)]
-      (pt/open-service service))
-    (let [exit-code (pt/await-done
-                     {:ref id, :type "deployment"})]
-      (when (not= 0 exit-code)
-        (pt/fail
-         "The container exited with a nonzero exit code."
-         {:exit-code exit-code})))
-    (doseq [{:keys [path sink]} (:datasets params)]
-      (pt/store-dataset
-       {:container-id id
-       :path         path
-       :type         "container-path"}
-       sink)))
-```
-
-# polytope/node
-
-```yml
-info: Runs a Node.js container.
-id: node
-params:
-- id: image
-  info: The container image to use.
-  name: Image
-  type: [default, str, 'public.ecr.aws/docker/library/node:21.7.0-slim']
-- id: code
-  info: Optional source code directory to mount into the container.
-  name: Code
-  type: [maybe, mount-source]
-- id: cmd
-  info: The command to run. Runs a Node shell if left blank.
-  name: Command
-  type:
-  - maybe
-  - - either
-    - str
-    - [str]
-- id: env
-  info: Environment variables for the container.
-  name: Environment variables
-  type:
-  - maybe
-  - - name: str
-      value: [either, str, int, bool]
-- id: id
-  info: The container's ID/name.
-  name: ID
-  type: [maybe, id]
-- id: package
-  info: Optional package.json file to install before running the command.
-  name: Package file
-  type: [maybe, mount-source]
-- id: mounts
-  info: Additional files or directories to mount into the container.
-  name: Mounts
-  type:
-  - maybe
-  - - - maybe
-      - {source: mount-source, path: absolute-path}
-- id: restart
-  info: What policy to apply on restarting containers that fail.
-  name: Restart policy
-  type:
-  - maybe
-  - policy: [enum, always, on-failure]
-    max-restarts: [maybe, int]
-- id: services
-  info: Ports in the container to expose as services.
-  name: Services
-  type:
-  - maybe
-  - [service-spec]
-module: polytope/container
-args:
-  cmd: |-
-    #pt-clj (if (:package params)
-      (if (or
-           (nil? (:cmd params))
-           (string? (:cmd params)))
-        (str
-         "sh -c 'npm install /package.json; "
-         (or (:cmd params) "node")
-         "'")
-        (str
-         "sh -c 'npm install /package.json; "
-         (str/join " " (:cmd params))
-         "'"))
-      (:cmd params))
-  env: pt.param env
-  services: pt.param services
-  image: pt.param image
-  id: pt.param id
-  mounts: |-
-    #pt-clj (vec
-     (concat
-     (when-let [code (:code params)]
-      [{:path "/app", :source code}])
-     (when-let [reqs (:package params)]
-      [{:path "/package.json", :source reqs}])
-     (:mounts params)))
-  restart: pt.param restart
-  workdir: /app
-```
-
-# Documentation for Polytope secrets and values
-
-Polytope supports setting and reading secrets and values. 
-
-## Secrets and values are set using the polytope CLI as follows.  
-
-### pt secret set --help          
-Sets the value of a secret.
-
-USAGE
-  $ pt secrets set [<secret-id>] [<data>] [optional flags]
-
-DESCRIPTION
---  Sets the value of a secret.
-  Overwrites the value if it already exists.
-  
-  A specification in YAML/JSON/EDN format must be provided, using one of the
-  following methods:
-   - stdin (in combination with the `--stdin` flag)
-   - a file (in combination with the `--file` flag)
-
-COMMAND OPTIONS
-  -c, --context=<context>          Runs as a specific user against a specific Polytope instance.
-  -f, --file=<path>                Reads a secret specification from a YAML/JSON/EDN file.
-  -o, --output=<(yaml|json|edn)>   Selects output format [default: yaml].
-      --pretty                     Pretty-prints output when supported [default: true].
-  -r, --raw                        If the data is a string, number, or boolean, prints it as a raw string.
-      --stdin                      If selected, reads a secret specification in YAML/JSON/EDN format from stdin.
-
-GLOBAL OPTIONS
-      --config-file=<path>   CLI config file path [default: ~/.config/polytope/config.yaml].
-  -h, --help                 Prints help for the command.
-      --log-file=<path>      Log printing file path [default: ~/.local/state/polytope/cli.log].
-  -v, --verbose              Enables log printing in terminal. Raises level of detail in log file.
-      --version              Prints the current CLI version.
-
-### pt value set --help.
-Sets the value of a value.
-
-USAGE
-  $ pt values set [<value-id>] [<data>] [optional flags]
-
-DESCRIPTION
-  Sets the value of a value.
-  Overwrites the value if it already exists.
-  
-  A specification in YAML/JSON/EDN format must be provided, using one of the
-  following methods:
-   - stdin (in combination with the `--stdin` flag)
-   - a file (in combination with the `--file` flag)
-
-COMMAND OPTIONS
-  -c, --context=<context>          Runs as a specific user against a specific Polytope instance.
-  -f, --file=<path>                Reads a value specification from a YAML/JSON/EDN file.
-  -o, --output=<(yaml|json|edn)>   Selects output format [default: yaml].
-      --pretty                     Pretty-prints output when supported [default: true].
-  -r, --raw                        If the data is a string, number, or boolean, prints it as a raw string.
-      --stdin                      If selected, reads a value specification in YAML/JSON/EDN format from stdin.
-
-GLOBAL OPTIONS
-      --config-file=<path>   CLI config file path [default: ~/.config/polytope/config.yaml].
-  -h, --help                 Prints help for the command.
-      --log-file=<path>      Log printing file path [default: ~/.local/state/polytope/cli.log].
-  -v, --verbose              Enables log printing in terminal. Raises level of detail in log file.
-      --version              Prints the current CLI version.
-
-
-## Secrets and values are dereferenced in the polytope.yml file as follows
-
-The value of a map pair can be specified as the data for a value or a secret. E.g. 
-
-modules: 
-    ...
-
-    - id: couchbase
-      args:
-        ... 
-        env:
-            ...
-            - { name: COUCHBASE_HOST, value: pt.value couchbase_host }
-            - { name: COUCHBASE_USERNAME, value: pt.secret couchbase_username }
-            - { name: COUCHBASE_PASSWORD, value: pt.secret couchbase_password }
-
-    - id: web-app
-      args:
-        ...
-        env: 
-            ...
-            - { name: API_PROTOCOL, value: pt.value api_protocol }
-            - { name: API_HOST, value: pt.value api_external_host }
-            - { name: API_PORT, value: pt.value api_port }
-
-  - id: redpanda-console
-    args:
-      ...
-      env: [{ name: REDPANDA_BROKERS, value: "{pt.value redpanda-host}:{pt.value redpanda-port}" }]
-
-        
-## Sample executable file with default values and secrets
-Store all default values and secrets in an executable file `.values_and_secrets.defaults.sh`. This file should contain 
-set commands for all values and secrets that are referenced in the polytope.yml file with default values. 
-
-This enables the user to execute that file to set all values and secrets when initializing the project on a new machine. 
-
-Make sure the .secrets_and_values.sh file pattern is added to the .gitignore file, so the user can store real secrets and local variables that should not be checked in in that file.
-
-## Polytope values and secrets are stored as strings
-When dereferencing a Polytope value or secret in the `polytope.yml` file, the dereferenced type will always be a string, even if it was set to be an int. 
-
-So, when dereferencing a value or a secret in `polytope.yml` you need to use the following best-practice workaround: 
-Create two modules: one top-level module and a base-level module. 
-
-### Top-level module
-The top-level module uses the base-level module as `module`. It dereferences the needed Polytope values and passes them on to the base module as args. 
-
-### Base-level module
-This base-level module does everything else needed for the module to run properly. It exposes as params the values needed to convert from strings to other types, such as ints. It then converts those params to the appropriate types in the args values.
-
-### Example
 
 ✅ **CORRECT**:
 ```yaml
-templates: 
-  - id: stack
-    run:
-      - redpanda-console
-
-modules: 
-  - id: redpanda-console
-    info: Redpanda Console web UI
-    module: redpanda-console-base
-    args:
-      port: pt.values redpanda_console_port
-      redpanda-port: pt.values redpanda_port
-
-  - id: redpanda-console-base
-    info: Redpanda Console web UI
-    module: polytope/redpanda!console
-    params:
-      - id: port
-        type: [default, str, "8080"]
-      - id: redpanda-port
-        type: [default, str, "9092"]
-    args:
-      brokers:
-        - host: pt.value redpanda_host
-          port: "#pt-js parseInt(params['redpandaPort'])"
-      admin-url: "http://{pt.value redpanda_host}:9644"
-      port: "#pt-js parseInt(params['port'])"
+env:
+  - name: API_PORT
+    value: pt.value api_port
 ```
 
-Notice that the top-level module specifies the base-level module as it's parent module. 
+## Usage in polytope.yml
 
-Notice the the base-level module dereferences the redpanda_host value since it's ok as a str. 
-
-Both of the port args are required by the polytope/redpanda!console to be of type int. 
-
-Notice that the conversion happens in a `#pt-js` script, in which the module params are accessible in the `params` map. And notice that param keys are converted from snakecase and dashcase to camelcase. 
-
-**IMPORTANT `pt.value` is not available within `#pt-js` scripts, only `params`.**
-
-❌ **WRONG**:
-```yaml
-  expose-as: "#pt-js parseInt(pt.value('api_port'))" # There is no `value` property in the pt object within a #pt-js script.
-```
-
-❌ **WRONG**:
+### Basic References
 ```yaml
 modules:
   - id: api
-    services:
-      - id: api
-        ports:
-          - port: 8888
-            protocol: http
-            expose-as: "#pt-js parseInt(params['api_port'])" # This will throw an error becuase there is no param 'api_port' specified for this module.
+    args:
+      env:
+        - name: DATABASE_HOST
+          value: pt.value db_host
+        - name: DATABASE_PASSWORD
+          value: pt.secret db_password
 ```
+
+### String Interpolation
+```yaml
+env:
+  - name: DATABASE_URL
+    value: "postgresql://{pt.secret db_user}:{pt.secret db_password}@{pt.value db_host}:{pt.value db_port}/mydb"
+```
+
+## Type Conversion Pattern
+
+**IMPORTANT**: Polytope values and secrets are always strings, even if set as numbers. When modules require non-string types (like integers), use the two-module pattern:
+
+### Pattern: Top-Level + Base Module
 
 ✅ **CORRECT**:
 ```yaml
 modules:
+  # Top-level module: handles value/secret dereferencing
   - id: api
     module: api-base
     args:
-      - id: port
-        value: pt.value port 
+      port: pt.value api_port
+      db-host: pt.value db_host
 
+  # Base module: handles type conversion and logic
   - id: api-base
     params:
       - id: port
-        type: [default, str, "4000"]
-    env:
-      - id: port
-        value: 8888
-    services:
-      - id: api-base
-        ports:
-          - port: 8888
-            protocol: http
-            expose-as: "#pt-js parseInt(params['port'])"
+        type: [default, str, "8080"]
+      - id: db-host
+        type: [default, str, "localhost"]
+    module: polytope/python
+    args:
+      port: "#pt-js parseInt(params.port)"  # Convert string to int
+      env:
+        - name: DB_HOST
+          value: pt.param db-host  # String is fine
 ```
+
+### Critical Rules for #pt-js Scripts
+- **`pt.value` and `pt.secret` are NOT available in `#pt-js` scripts**
+- Only `params` is available for accessing module parameters
+- Parameter names are converted to camelCase (e.g., `db-host` → `params.dbHost`)
+
+❌ **WRONG**:
+```yaml
+port: "#pt-js parseInt(pt.value('api_port'))"  # pt.value not available!
+```
+
+✅ **CORRECT**:
+```yaml
+port: "#pt-js parseInt(params.apiPort)"  # Use params instead
+```
+
+## Setting Values and Secrets
+
+Values and secrets are set using the Polytope CLI:
+
+```bash
+# Set a value
+pt values set api_port 8080
+
+# Set a secret
+pt secrets set db_password mypassword
+
+# Set from file
+pt values set --file config.yaml
+```
+
+## Default Values Setup
+
+Create `.values_and_secrets.defaults.sh` with default values for easy project setup:
+
+```bash
+#!/bin/bash
+# Default values and secrets for development
+
+# Values
+pt values set api_port 8080
+pt values set db_host localhost
+pt values set db_port 5432
+
+# Secrets (use placeholder values)
+pt secrets set db_password changeme
+pt secrets set api_key your-api-key-here
+```
+
+Add to `.gitignore`:
+```
+.values_and_secrets.sh
+```
+
+This allows users to create `.values_and_secrets.sh` with real values locally without committing them.

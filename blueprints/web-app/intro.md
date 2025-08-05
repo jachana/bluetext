@@ -26,16 +26,32 @@ Example of a Polytope web-app module:
         - { path: /app/node_modules/, source: { type: volume, id: node-modules }}
 ```
 
+## Generate the code
 
-## Boilerplate
-Run the following command to generate the boilerplate code for this blueprint. 
+### 1. Start by running the React Web App boilerplate
+Fetch the documentation for the boilerplate module from the bluetext MCP server.
+
+Check if the boilerplate module is added to the polytope.yml file. If not, add it. 
+
+Run the following command to generate the initial code for the React Web App module: 
 
 `pt run --non-interactive "boilerplate{source-path: https://github.com/Cillers-com/boilerplate-react-web-app, target-path: my-module-code-root-path}"`
 
 Where `my-module-code-root-path` should be replace by the relative path to where you should place the module code root directory, `modules/web-app` by default. 
 
+### 2. Make any necessary modifications
+Check the generated boilerplate code and see if any changes need to be made to fulfill the user's request. 
+
+### 3. Add needed packages using the add-package-npm module
+Fetch the documentation for the add-package-npm module from the bluetext MCP server.
+
+Check if the add-package-npm module is added to the polytope.yml file. If not, add it. 
+
+Run the add-package-npm module in accordance with the documenation. 
+
+
 ## Poltope Values
-Example of code to add to the Polytope .secrets_and_values.defaults.sh file:
+Example of code to add to the Polytope .values_and_secrets.defaults.sh file:
 ```bash
 pt values set web-app-port 3000
 ```

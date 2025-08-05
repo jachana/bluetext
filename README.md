@@ -23,12 +23,15 @@ Blueprint should also work well with other good MCP-powered agentic coding tools
 ### Resources
 The server provides access to the following documentation resources:
 
+- **`bluetext://intro`** - Main overview and quick start guide for Bluetext framework (`intro.md`)
 - **`bluetext://polytope-docs`** - Comprehensive Polytope platform documentation (`polytope/intro.md`)
 - **`bluetext://code-gen-modules/<module-id>`** - Code generation module documentation (`code-gen-modules/<module-id>.md`)
   - Available modules: `add-package-npm`, `add-package-python`, `boilerplate`
 - **`bluetext://blueprints`** - Introduction to Bluetext blueprints (`blueprints/intro.md`)
 - **`bluetext://blueprints/<blueprint-id>`** - Individual blueprint documentation (`blueprints/<blueprint-id>/intro.md`)
   - Available blueprints: `couchbase`, `init`, `python-api`, `redpanda`, `redpanda-console`, `web-app`
+- **`bluetext://polytope/standard-modules/<module-id>`** - Built-in Polytope module documentation (`polytope/standard-modules/<module-id>.md`)
+  - Available modules: `container`, `node`, `python`, `python-simple`, `postgres`, `postgres-simple`, `redpanda`, `redpanda-console`, `redpanda-connect`
 
 All resources are served with `text/markdown` MIME type and include comprehensive documentation about Polytope concepts, modules, and blueprints.
 
@@ -51,6 +54,11 @@ npm run watch
 
 ## Sample Prompts
 
+### Getting Started
+```
+Get the main Bluetext documentation from the bluetext mcp server to understand the framework and available resources.
+```
+
 ### React Web App
 ```
 Get the polytope documentation and a list of all available blueprints from the bluetext mcp server.
@@ -65,4 +73,20 @@ Generate a Polytope React app that runs on port 3000 by default.
 Get the polytope documentation and a list of all available blueprints from the bluetext mcp server.
 
 Generate a Polytope Python api that runs on port 4000 by default.
+```
+
+### Using Standard Modules
+
+```
+Get the polytope documentation and standard modules documentation from the bluetext mcp server.
+
+Create a Polytope configuration that uses the polytope/python module to run a Flask API server with a PostgreSQL database using the polytope/postgres module.
+```
+
+### Custom Container Setup
+
+```
+Get the polytope/container and polytope/node standard module documentation from the bluetext mcp server.
+
+Create a Polytope setup that runs a custom Node.js application with specific environment variables and port configuration using the standard modules.
 ```
