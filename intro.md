@@ -1,113 +1,90 @@
 # Bluetext Documentation
 
-Bluetext is an agentic coding assistant framework for building enterprise-grade systems on Polytope. This documentation provides comprehensive guidance for AI coding assistants working with Polytope-based projects.
+## Intro
 
-## Quick Start
+Bluetext provides documenation for how to build software systems on Polytope. Bluetext consists of two concepts: Blueprints and Code Generation Modules.
 
-1. **Prerequisites**: Install [Polytope](https://docs.cillers.com/polytope) and [Docker](https://orbstack.dev) (OrbStack recommended for Mac)
-2. **Core Concepts**: Understand [Polytope platform fundamentals](#polytope-platform)
-3. **Choose Your Path**: Select from [available blueprints](#blueprints) or use [standard modules](#standard-modules)
-4. **Generate Code**: Use [code generation modules](#code-generation) for boilerplate and package management
+### Blueprints
 
-## Polytope Platform
+Blueprints are instructions for how to add a certain type of module to Polytope. The purpose of Blueprints is to enable you to reliably and efficiently generate the infrastructure needed to provide certain types of applications, functionality and servers. 
 
-Polytope is a container orchestration platform that runs all software components in containers (Docker locally, Kubernetes in cloud). Key concepts:
+#### Available Blueprints
 
-- **Jobs & Steps**: Computational graphs where each step runs a module
-- **Modules**: Reusable code units that interface with Polytope's runner API
-- **Templates**: Full job specifications for easy reuse
-- **Configuration**: Defined in `polytope.yml` files
+| Blueprint ID       | Description                                              |
+|--------------------|----------------------------------------------------------|
+| python-api         | Python API server with boilerplate                       |
+| web-app            | React web application with boilerplate                   |
+| redpanda           | Kafka-compatible streaming platform                      |
+| redpanda-console   | Redpanda Console                                         |
+| couchbase          | Couchbase cluster                                        |
+| init               | Data cluster initialization, data structure management and configuration management |
 
-**📖 Detailed Documentation**: Access `bluetext://polytope-docs` for comprehensive Polytope documentation including:
+#### MCP Intro Documentation For Individual Blueprints
+
+The intro documentation for each Blueprint is available at the MCP resource `bluetext://blueprints/<blueprint-id>`. 
+
+To use a Blueprint you must first read its documentation resource and follow its instructions. 
+
+### Code Generation Modules
+
+Code Geneation Modules are Polytope modules that generate code reliably and efficiently. Blueprints may provide instructions to use different code generation modules for different code generation purposes. 
+
+
+#### Available Code Generation Modules
+
+| Module ID           | Description                                                                 |
+|---------------------|-----------------------------------------------------------------------------|
+| boilerplate         | Generate the initial code for a module by cloning a Git repository. Always use this when generating the initial code for a module if there is an applicable boilerplate available. |
+| add-package-npm     | Add npm packages to Node.js projects. Always use this instead of adding npm packages yourself. |
+| add-package-python  | Add packages to Python projects. Always use this instead of adding python packages yourself. |
+
+
+#### MCP Intro Documentation For Individual Code Generation Modules
+
+Before using a Code Generation Module, you must read the documentation for it and follow its instructions. 
+
+The intro documentation for each Code Generation Module is available at the MCP resource `bluetext://code-gen-modules/<module-id>`. 
+
+**WRONG: Running a code generation module, without first reading the documentaiton for it. E.g. running `pt run add-package-python` without first reading `bluetext://code-gen-modules/add-package-python`. You will fail if you try this.**
+
+**CORRECT: First reading the documentation for the code generation module and then running it in accordance with the documentation.**
+
+
+## Polytope
+
+Polytope is a container orchestration platform that runs all software components in containers (Docker locally, Kubernetes in cloud). 
+
+### MCP Intro Documentation For Polytope
+Read the Polytope intro documentation resource at `bluetext://polytope-docs` to understand how Polytope works.
+
+Contents of this documentation includes: 
 - Complete module and template syntax
 - Parameter types and validation
 - Values and secrets management
 - Best practices and patterns
 
-## Blueprints
+### Command-Line Interface (CLI)
 
-Pre-built patterns for common application types. Always check for blueprints before creating custom modules.
+Polytope is managed with a CLI called `pt` that is available in the user's terminal. 
 
-**📖 Blueprint Overview**: Access `bluetext://blueprints` for complete blueprint documentation
+### Key Concepts
 
-**Available Blueprints**:
-- `python-api` - Python API server with boilerplate
-- `web-app` - React web application with boilerplate  
-- `redpanda` - Kafka-compatible streaming platform
-- `redpanda-console` - Redpanda Console
-- `couchbase` - Couchbase cluster
-- `init` - Data cluster initialization, data structure management and configuration management.
+| Concept          | Description                                            |
+|------------------|--------------------------------------------------------|
+| Jobs & Steps     | Computational graphs where each step runs a module     |
+| Modules          | Reusable code units that interface with Polytope's runner API |
+| Templates        | Full job specifications for easy reuse                 |
+| Modules And Templates Configuration | Specified in the`./polytope.yml` file                       |
+| Values           | Values can be set by the CLI and referenced in the `./polytope.yml` file. |
+| Secrets          | Like values but with extra security measures. |
 
-**Usage**: Access documentation for individual blueprints via `bluetext://blueprints/<blueprint-id>`
+### Modules And Templates Configuration File 
 
-## Standard Modules
+The modules and templates are specified in the `polytope.yml` configuration file.
 
-Built-in Polytope modules available without definition in `polytope.yml`. Reference with `polytope/` prefix.
+The templates should be specified as consicely as possible. Keep the complexity defined in modules.
 
-**📖 Module Documentation**: Access `bluetext://polytope/standard-modules/<module-id>` for detailed specs
-
-**Core Modules**:
-- `polytope/container` - Base Docker container runner
-- `polytope/python` / `polytope/python-simple` - Python applications
-- `polytope/node` - Node.js applications
-- `polytope/postgres` / `polytope/postgres-simple` - PostgreSQL databases
-- `polytope/redpanda` - Kafka-compatible streaming
-- `polytope/redpanda-console` - Redpanda management UI
-- `polytope/redpanda-connect` - Data streaming pipelines
-
-## Code Generation
-
-Automated tools for common development tasks.
-
-**📖 Module Documentation**: Access `bluetext://code-gen-modules/<module-id>` for usage details
-
-**Available Modules**:
-- `boilerplate` - Generate the initial code for a module by cloning a Git repository. Always use this when generating the initial code for a module if there is an applicable boilerplate available.
-- `add-package-npm` - Add npm packages to Node.js projects. Always use this instead of adding npm packages yourself. 
-- `add-package-python` - Add packages to Python projects. Always use this instead of adding python packages yourself.
-
-## Key Principles for AI Assistants
-
-### File Structure
-- Place `templates` section before `modules` in `polytope.yml`
-- Keep templates concise, define complexity in modules
-- Use `./modules/<module-id>/` for custom module code
-
-### Configuration Management
-- **CRITICAL**: Use Polytope values/secrets for all environment-specific data
-- No hardcoded ports, hostnames, or credentials in `polytope.yml`
-- Values: `pt.value api_port` (non-sensitive)
-- Secrets: `pt.secret db_password` (sensitive)
-
-### Service Architecture
-- **CRITICAL**: Use persistent volumes for stateful services (databases, queues)
-- Services run concurrently by default - avoid `run-when: after` for services
-- All code must be resilient to service dependencies being temporarily unavailable
-
-### Type Safety
-- Polytope values/secrets are always strings
-- Use two-module pattern for type conversion:
-  - Top-level module: handles value/secret dereferencing
-  - Base module: handles type conversion with `#pt-js`
-- **IMPORTANT**: `pt.value` and `pt.secret` not available in `#pt-js` scripts
-
-## Resource Access Pattern
-When working with Bluetext documentation:
-1. **Start with blueprints**: `bluetext://blueprints/<blueprint-id>`
-2. **Reference standard modules**: `bluetext://polytope/standard-modules/<module-id>`
-3. **Use code generation**: `bluetext://code-gen-modules/<module-id>`
-4. **Consult platform docs**: `bluetext://polytope-docs`
-
-## Workflows
-
-If there is a relevant workflow provided below, you should follow it and make appropriate adjustments based on the  following workflows to comply with the users requests. 
-
-### Adding a new module
-1. Check if there is a blueprint for the type of module that is requested using `bluetext://blueprints`. If not, you are on your own and should not continue this process. If there is a blueprint, fetch it: `bluetext://blueprints/<blueprint-id>`.
-3. Follow the instructions provided by the blueprint. Run scripts and modules as instructed by the blueprint, don't just tell the user to do that.
-4. Specify which blueprint the module is based on in the info section. E.g. `info: "React web application (blueprint: web-app)"`.
-5. Verify that you have really followed all the instructions provided by the blueprint. 
-6. Check if the generated code fulfills the user's requirements, or if some adjustments need to be made, e.g. some functionality may need to be implemented in the added module's code. 
+The templates should be specified before the modules. 
 
 ## Example polytope.yml 
 ```yaml
@@ -120,6 +97,7 @@ templates:
 modules:
   - id: api
     module: polytope/python
+    into: "Python API server (blueprint: python-api)"
     args:
       port: pt.value api_port
       code: { type: host, path: ./modules/api }
@@ -134,3 +112,71 @@ modules:
 ```
 
 This structure ensures maintainable, environment-agnostic, and scalable Polytope applications.
+
+### Module Custom Code
+
+Modules can mount code into their containers. The modules' custom code should be located in `./modules/<module-id>/` directories. 
+
+### Values And Secrets
+
+Use Polytope values/secrets for all environment-specific data. No hardcoded ports, hostnames, or credentials in `polytope.yml`
+
+Values are set with the CLI's `values set` command, e.g. `pt values set api_port 4000` and referenced in the `./polytope.yml` file with the `pt.value <value_key>` syntax, e.g. `pt.value api_port`. 
+Secrets are set with the CLI's `secrets set` command, e.g. `pt secrets set couchbase_password pa55w0rd` and referenced in the `./polytope.yml` file with the `pt.secret <value_key>` syntax, e.g. `pt.secret couchbase_password`. 
+
+#### Type Conversion of Valus And Secrets
+Polytope values and secrets are always strings.
+
+Use two-module pattern for type conversion:
+- Top-level module: handles value/secret dereferencing
+- Base module: handles type conversion with `#pt-js`
+
+**Important: `pt.value` and `pt.secret` is not available in `"#pt-js "` scripts, e.g. `"#pt-js parseInt(pt.value['port'])"` will not work.** 
+
+### Persistent Volumes
+
+Use persistent volumes for stateful services (databases, queues)
+
+### `run-when`
+
+Services run concurrently by default - avoid `run-when: after` for services
+
+### Dependency Resilience
+All code must be resilient to service dependencies being temporarily unavailable
+
+### Polytope Standard Modules
+
+Polytope has built-in standard modules that are available even without definition in `polytope.yml`. The standard modules should be referenced with the `polytope/` prefix.
+
+#### Available Standard Modules
+
+| Module ID                    | Description                        |
+|------------------------------|------------------------------------|
+| polytope/container           | Base Docker container runner       |
+| polytope/python              | Python applications                |
+| polytope/python!simple       | Python applications                |
+| polytope/node                | Node.js applications               |
+| polytope/postgres            | PostgreSQL databases               |
+| polytope/postgres!simple     | PostgreSQL databases               |
+| polytope/redpanda            | Kafka-compatible streaming         |
+| polytope/redpanda!console    | Redpanda management UI             |
+| polytope/redpanda!connect    | Data streaming pipelines           |
+
+
+#### MCP Intro Documentation For Individual Standard Modules
+
+To use a standard module you must first read its documentation resource at `bluetext://polytope/standard-modules/<module-id>`. 
+
+## Workflows
+
+If there is a relevant workflow provided below, you should follow it and make appropriate adjustments based on the following workflows to comply with the users requests. 
+
+### Adding a new Polytope module
+1. Check if there is a blueprint for the type of module that is requested by reading the Blueprints intro documentation resource `bluetext://blueprints`. 
+2. If there is no relevant Blueprint, you are on your own and should not continue this workflow. If there is a blueprint, read it's documentation resource at `bluetext://blueprints/<blueprint-id>`.
+3. If the blueprint contains instructions to run a code-gen-module, fetch the documentation for it `bluetext://code-gen-modules/<module-id>`.
+4. Follow the instructions provided by the blueprint. Run scripts and modules as instructed by the blueprint, don't just tell the user to do that.
+5. Specify which blueprint the module is based on in the info section. E.g. `info: "React web application (blueprint: web-app)"`.
+6. Check if the generated code fulfills the user's requirements, or if some adjustments need to be made, e.g. some functionality may need to be implemented in the added module's code. 
+7. If the values_and_secrets.defaults.yaml script was updated, run it, don't just tell the user to do it.
+
