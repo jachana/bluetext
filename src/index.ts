@@ -37,6 +37,34 @@ function getCodeGenModules(): string[] {
 }
 
 /**
+ * Build index mapping canonical Polytope module IDs (from markdown H1) to file basenames.
+ * This allows module IDs like "redpanda!console" to be served from files like "redpanda-console.md".
+ */
+function getStandardModuleIndex(): Record<string, string> {
+  const index: Record<string, string> = {};
+  try {
+    const standardModulesPath = join(PROJECT_ROOT, "polytope", "standard-modules");
+    const moduleFiles = readdirSync(standardModulesPath).filter((f) => f.endsWith(".md"));
+    for (const file of moduleFiles) {
+      const base = file.replace(".md", "");
+      const path = join(standardModulesPath, file);
+      let canonical = base;
+      try {
+        const text = readFileSync(path, "utf-8");
+        const m = text.match(/^#\s+polytope\/([^\s]+)\s*$/m);
+        if (m) canonical = m[1];
+      } catch {
+        // ignore read errors for individual files
+      }
+      index[canonical] = base;
+    }
+  } catch {
+    // ignore if directory doesn't exist
+  }
+  return index;
+}
+
+/**
  * Get the list of available blueprints
  */
 function getBlueprints(): string[] {
@@ -152,10 +180,11 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
     }
   }
 
-  // Add standard modules
-  const standardModules = getStandardModules();
-  for (const moduleId of standardModules) {
-    const modulePath = join(PROJECT_ROOT, "polytope", "standard-modules", `${moduleId}.md`);
+  // Add standard modules (use canonical IDs parsed from markdown H1)
+  const stdIndex = getStandardModuleIndex();
+  for (const moduleId of Object.keys(stdIndex)) {
+    const fileBase = stdIndex[moduleId];
+    const modulePath = join(PROJECT_ROOT, "polytope", "standard-modules", `${fileBase}.md`);
     if (existsSync(modulePath)) {
       resources.push({
         uri: `bluetext://polytope/standard-modules/${moduleId}`,
@@ -206,7 +235,9 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
       filePath = join(PROJECT_ROOT, "blueprints", blueprintId, "intro.md");
     } else if (resourcePath.startsWith("polytope/standard-modules/")) {
       const moduleId = resourcePath.replace("polytope/standard-modules/", "");
-      filePath = join(PROJECT_ROOT, "polytope", "standard-modules", `${moduleId}.md`);
+      const stdIndex = getStandardModuleIndex();
+      const fileBase = stdIndex[moduleId] ?? moduleId.replace(/!/g, "-");
+      filePath = join(PROJECT_ROOT, "polytope", "standard-modules", `${fileBase}.md`);
     } else {
       throw new Error(`Unknown resource path: ${resourcePath}`);
     }

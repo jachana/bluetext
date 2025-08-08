@@ -1,6 +1,11 @@
-## Polytope Module Spec
+## Documentation For The React Web App Blueprint
 
-Example of a Polytope web-app module:
+This Blueprint specifies how to add and update a Polytope module for providing a React Web App
+
+Parent module: `polytope/node`. Read the bluetext documentation resource for this standard module to understand how to specify the `args` attributes.
+
+## Example of a Polytope React Web App module
+
 ```yaml
   - id: web-app
     params:
@@ -26,33 +31,35 @@ Example of a Polytope web-app module:
         - { path: /app/node_modules/, source: { type: volume, id: node-modules }}
 ```
 
-## Generate the code
+## Example of code to add to the Polytope .values_and_secrets.defaults.sh file
+
+```bash
+pt values set web-app-port 3000
+```
+
+## Instructions For How To Add npm Packages
+
+Fetch the documentation for the add-package-npm module from the bluetext MCP server. Run the add-package-npm module in accordance with this documenation.
+
+## Accessing An API Server
+
+Do not route API requests through the web app node server. Send the requests directly to the API server. 
+
+## Adding The Module
+
+Here are the steps you should take to add this module.
 
 ### 1. Start by running the React Web App boilerplate
-Fetch the documentation for the boilerplate module from the bluetext MCP server.
-
-Check if the boilerplate module is added to the polytope.yml file. If not, add it. 
+Fetch the documentation for the boilerplate module from the bluetext MCP server. 
 
 Run the following command to generate the initial code for the React Web App module: 
 
 `pt run --non-interactive "boilerplate{source-path: https://github.com/Cillers-com/boilerplate-react-web-app, target-path: my-module-code-root-path}"`
 
-Where `my-module-code-root-path` should be replace by the relative path to where you should place the module code root directory, `modules/web-app` by default. 
+Where `my-module-code-root-path` should be replaced by the relative path to where you should place the module code root directory, `modules/web-app` by default. 
 
 ### 2. Make any necessary modifications
 Check the generated boilerplate code and see if any changes need to be made to fulfill the user's request. 
 
-### 3. Add needed packages using the add-package-npm module
-Fetch the documentation for the add-package-npm module from the bluetext MCP server.
-
-Check if the add-package-npm module is added to the polytope.yml file. If not, add it. 
-
-Run the add-package-npm module in accordance with the documenation. 
-
-
-## Poltope Values
-Example of code to add to the Polytope .values_and_secrets.defaults.sh file:
-```bash
-pt values set web-app-port 3000
-```
+### 3. Add needed packages using the instructions provided above.
 

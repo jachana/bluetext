@@ -31,12 +31,12 @@ When you need to understand how a specific standard module functions, use the MC
 | Module ID | Summary |
 |-----------|---------|
 | `redpanda` | Runs a single Redpanda node in development mode with Kafka-compatible streaming |
-| `redpanda-console` | Runs the Redpanda Console web UI for managing and monitoring Kafka/Redpanda clusters |
-| `redpanda-connect` | Runs Redpanda Connect for building real-time data streaming and transformation pipelines |
+| `redpanda!console` | Runs the Redpanda Console web UI for managing and monitoring Kafka/Redpanda clusters |
+| `redpanda!connect` | Runs Redpanda Connect for building real-time data streaming and transformation pipelines |
 | `postgres` | Runs a PostgreSQL database container with full configuration options |
-| `postgres-simple` | Runs a PostgreSQL container with minimal configuration for development use |
+| `postgres!simple` | Runs a PostgreSQL container with minimal configuration for development use |
 | `python` | Runs a Python container with full configuration options for applications and services |
-| `python-simple` | Runs a Python container with minimal configuration for simple applications |
+| `python!simple` | Runs a Python container with minimal configuration for simple applications |
 | `container` | Runs a Docker container with full configuration options - the foundational module |
 | `node` | Runs a Node.js container with full configuration options for JavaScript applications |
 
@@ -170,8 +170,8 @@ When a module calls another module, it passes values for parameters via the `arg
 Values can be supplied in multiple different ways:
 - Literal data: e.g. `foo`, `123`. `[false]`, `{foo: bar}` etc.
 - References to parameters (as defined in `params`): `pt.param my-param`
-- References to values: `pt.value my-value`.  Values are data (typically strings) that have been provided separately by the user. **IMPORTANT** `pt.value` cannot be accessed in a `#pt-js` script. 
-- References to secrets: `pt.secret my-secret`. Secrets are sensitive data (typically strings) that have been provided separately by the user. **IMPORTANT** `pt.secret` cannot be accessed in a `#pt-js` script.
+- References to values: `pt.value my-value`.  Values are data (typically strings) that have been provided separately by the user. **IMPORTANT** `pt.value` cannot be accessed in a `#pt-clj` script. 
+- References to secrets: `pt.secret my-secret`. Secrets are sensitive data (typically strings) that have been provided separately by the user. **IMPORTANT** `pt.secret` cannot be accessed in a `#pt-clj` script.
 - Interpolated strings: strings that contain references to params, values or secrets, e.g. `http://{pt.param domain}:{pt.value port}/foo?api-key={pt.secret my-secret-key}`
 - Code: TODO
 
@@ -194,7 +194,7 @@ args:
 
 **WRONG**
 ```yaml
-    some-param: "#pt-js parseInt(pt.value('foo'))"    # This will throw an error since there is no pt.value property or function in a `#pt-js` script. 
+    some-param: "#pt-clj (Integer/parseInt (pt.value \"foo\"))"    # This will throw an error since pt.value is not available in `#pt-clj` scripts.
 ```
 
 #### Param type DSL
@@ -736,7 +736,7 @@ env:
 ```yaml
 env:
   - name: API_PORT
-    value: pt.value api_port
+    value: pt.value api-port
 ```
 
 ## Usage in polytope.yml
@@ -748,16 +748,16 @@ modules:
     args:
       env:
         - name: DATABASE_HOST
-          value: pt.value db_host
+          value: pt.value db-host
         - name: DATABASE_PASSWORD
-          value: pt.secret db_password
+          value: pt.secret db-password
 ```
 
 ### String Interpolation
 ```yaml
 env:
   - name: DATABASE_URL
-    value: "postgresql://{pt.secret db_user}:{pt.secret db_password}@{pt.value db_host}:{pt.value db_port}/mydb"
+    value: "postgresql://{pt.secret db_user}:{pt.secret db_password}@{pt.value db-host}:{pt.value db-port}/mydb"
 ```
 
 ## Type Conversion Pattern
@@ -773,8 +773,8 @@ modules:
   - id: api
     module: api-base
     args:
-      port: pt.value api_port
-      db-host: pt.value db_host
+      port: pt.value api-port
+      db-host: pt.value db-host
 
   # Base module: handles type conversion and logic
   - id: api-base
@@ -785,25 +785,26 @@ modules:
         type: [default, str, "localhost"]
     module: polytope/python
     args:
-      port: "#pt-js parseInt(params.port)"  # Convert string to int
+      port: "#pt-clj (Integer/parseInt (:port params))"  # Convert string to int
       env:
         - name: DB_HOST
           value: pt.param db-host  # String is fine
 ```
 
-### Critical Rules for #pt-js Scripts
-- **`pt.value` and `pt.secret` are NOT available in `#pt-js` scripts**
-- Only `params` is available for accessing module parameters
-- Parameter names are converted to camelCase (e.g., `db-host` → `params.dbHost`)
+### Critical Rules for #pt-clj Scripts
 
-❌ **WRONG**:
+#### `pt.value` and `pt.secret` are NOT available in `#pt-clj` scripts
+
+**WRONG**:
 ```yaml
-port: "#pt-js parseInt(pt.value('api_port'))"  # pt.value not available!
+port: "#pt-clj (Integer/parseInt (:api-port pt.value))"  # pt.value not available!
 ```
 
-✅ **CORRECT**:
+#### The modules param map is available as `params` in `#pt-clj` scripts
+
+**CORRECT**:
 ```yaml
-port: "#pt-js parseInt(params.apiPort)"  # Use params instead
+port: "#pt-clj (Integer/parseInt (:api-port params))"
 ```
 
 ## Setting Values and Secrets
@@ -812,10 +813,10 @@ Values and secrets are set using the Polytope CLI:
 
 ```bash
 # Set a value
-pt values set api_port 8080
+pt values set api-port 8080
 
 # Set a secret
-pt secrets set db_password mypassword
+pt secrets set db-password mypassword
 
 # Set from file
 pt values set --file config.yaml
@@ -830,13 +831,13 @@ Create `.values_and_secrets.defaults.sh` with default values for easy project se
 # Default values and secrets for development
 
 # Values
-pt values set api_port 8080
-pt values set db_host localhost
-pt values set db_port 5432
+pt values set api-port 8080
+pt values set db-host localhost
+pt values set db-port 5432
 
 # Secrets (use placeholder values)
-pt secrets set db_password changeme
-pt secrets set api_key your-api-key-here
+pt secrets set db-password changeme
+pt secrets set api-key your-api-key-here
 ```
 
 Add to `.gitignore`:

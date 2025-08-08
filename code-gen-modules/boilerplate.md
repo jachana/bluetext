@@ -2,6 +2,8 @@
 
 The boilerplate module supports creating the initial code by downloading boilerplate code from any Git repository.
 
+Check if the boilerplate module is added to the polytope.yml file. If not, add it. If you try to run this module before adding it, you will fail. 
+
 ## Polytope Module Spec
 
 ```yaml

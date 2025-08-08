@@ -40,7 +40,7 @@ us-central1-docker.pkg.dev/arched-inkwell-420116/cillers-repo/cillers-init:lates
 
 ## Configuration
 
-## Generate to following environment config file at "./conf/init/env.yaml"
+## Generate the following environment config file at "./conf/init/env.yaml"
 ```yaml
 environments:
   - dev

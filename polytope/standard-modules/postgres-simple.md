@@ -1,4 +1,4 @@
-# polytope/postgres-simple
+# polytope/postgres!simple
 
 Runs a PostgreSQL container with minimal configuration for development use.
 
@@ -72,7 +72,7 @@ The module exposes:
 ```yaml
 modules:
   - id: dev-db
-    module: polytope/postgres-simple
+    module: polytope/postgres!simple
     args:
       data-volume:
         type: volume
