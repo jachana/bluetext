@@ -1,0 +1,22 @@
+{
+  "name": "transaction-service",
+  "version": "1.0.0",
+  "description": "Transaction processing and logging service",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "express": "^4.18.0",
+    "mongoose": "^7.0.0",
+    "redis": "^4.6.0"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0",
+    "@types/node": "^18.0.0"
+  },
+  "keywords": ["transaction", "logging", "microservice"],
+  "author": "Demo Team",
+  "license": "MIT"
+}

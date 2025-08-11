@@ -1,0 +1,9 @@
+repos:
+  - name: payment-service
+    path: ../demo-repos/payment-service
+  - name: user-service
+    path: ../demo-repos/user-service
+  - name: transaction-service
+    path: ../demo-repos/transaction-service
+options:
+  includeDevDeps: false
