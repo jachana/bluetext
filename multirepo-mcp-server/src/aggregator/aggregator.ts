@@ -10,8 +10,17 @@ import { parseRepoDependencies } from '../parser/packageJson.js';
  * @returns Unified graph with nodes and edges
  */
 export function buildGraph(repoRefs: RepoRef[], includeDevDeps: boolean = false): UnifiedGraph {
-  // TODO: Implement graph building logic
-  throw new Error('Graph aggregator not yet implemented');
+  // Create nodes for all repositories
+  const nodes = createNodes(repoRefs);
+  
+  // Create edges based on dependencies
+  const edges = createEdges(repoRefs, includeDevDeps);
+  
+  return {
+    nodes,
+    edges,
+    generatedAt: new Date().toISOString()
+  };
 }
 
 /**
@@ -20,8 +29,11 @@ export function buildGraph(repoRefs: RepoRef[], includeDevDeps: boolean = false)
  * @returns Array of graph nodes
  */
 function createNodes(repoRefs: RepoRef[]): GraphNode[] {
-  // TODO: Implement node creation
-  throw new Error('Node creation not yet implemented');
+  return repoRefs.map(repo => ({
+    id: repo.name,
+    kind: 'repo' as const,
+    label: repo.name
+  }));
 }
 
 /**
@@ -31,8 +43,24 @@ function createNodes(repoRefs: RepoRef[]): GraphNode[] {
  * @returns Array of graph edges
  */
 function createEdges(repoRefs: RepoRef[], includeDevDeps: boolean): GraphEdge[] {
-  // TODO: Implement edge creation
-  throw new Error('Edge creation not yet implemented');
+  const edges: GraphEdge[] = [];
+  const allRepoNames = getRepoNames(repoRefs);
+  
+  for (const repo of repoRefs) {
+    // Parse dependencies for this repository
+    const dependencies = parseRepoDependencies(repo.path, allRepoNames, includeDevDeps);
+    
+    // Create edges for each dependency
+    for (const depName of dependencies) {
+      edges.push({
+        from: repo.name,
+        to: depName,
+        relation: 'depends_on' as const
+      });
+    }
+  }
+  
+  return edges;
 }
 
 /**

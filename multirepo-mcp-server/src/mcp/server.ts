@@ -48,10 +48,10 @@ export class MultirepoMcpServer {
 
   private initializeServer(configPath: string) {
     try {
-      // TODO: Load configuration and build graph
-      // this.config = loadConfig(configPath);
-      // this.graph = buildGraph(this.config.repos, this.config.options?.includeDevDeps);
-      console.error('Server initialization not yet implemented');
+      // Load configuration and build graph
+      this.config = loadConfig(configPath);
+      this.graph = buildGraph(this.config.repos, this.config.options?.includeDevDeps || false);
+      console.error(`Multirepo MCP server initialized with ${this.config.repos.length} repositories`);
     } catch (error) {
       console.error('Failed to initialize server:', error);
       process.exit(1);
@@ -166,36 +166,85 @@ export class MultirepoMcpServer {
   }
 
   private handleListRepos() {
-    // TODO: Implement list_repos handler
+    if (!this.config) {
+      throw new Error('Server not properly initialized');
+    }
+
     return {
       content: [
         {
           type: 'text',
-          text: 'Repository listing not yet implemented',
+          text: JSON.stringify({ repos: this.config.repos }, null, 2),
         },
       ],
     };
   }
 
   private handleGetDependencies(repoName?: string) {
-    // TODO: Implement get_dependencies handler
+    if (!this.graph) {
+      throw new Error('Server not properly initialized');
+    }
+
+    // Build adjacency list
+    const adjList: Record<string, string[]> = {};
+    
+    // Initialize all repos with empty arrays
+    for (const node of this.graph.nodes) {
+      adjList[node.id] = [];
+    }
+    
+    // Populate dependencies
+    for (const edge of this.graph.edges) {
+      if (!adjList[edge.from]) {
+        adjList[edge.from] = [];
+      }
+      adjList[edge.from].push(edge.to);
+    }
+
+    // Filter by repo name if specified
+    let filteredAdjList = adjList;
+    let filteredNodes = this.graph.nodes;
+    let filteredEdges = this.graph.edges;
+
+    if (repoName) {
+      filteredAdjList = { [repoName]: adjList[repoName] || [] };
+      filteredNodes = this.graph.nodes.filter(n => n.id === repoName);
+      filteredEdges = this.graph.edges.filter(e => e.from === repoName);
+    }
+
+    const result = {
+      adjList: filteredAdjList,
+      nodes: filteredNodes,
+      edges: filteredEdges
+    };
+
     return {
       content: [
         {
           type: 'text',
-          text: 'Dependency analysis not yet implemented',
+          text: JSON.stringify(result, null, 2),
         },
       ],
     };
   }
 
   private handleGenerateGraph() {
-    // TODO: Implement generate_graph handler
+    if (!this.graph) {
+      throw new Error('Server not properly initialized');
+    }
+
+    const mermaidDiagram = generateMermaid(this.graph);
+    
+    const result = {
+      mermaid: mermaidDiagram,
+      graph: this.graph
+    };
+
     return {
       content: [
         {
           type: 'text',
-          text: 'Graph generation not yet implemented',
+          text: JSON.stringify(result, null, 2),
         },
       ],
     };

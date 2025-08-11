@@ -7,8 +7,20 @@ import { UnifiedGraph, GraphNode, GraphEdge } from '../aggregator/types.js';
  * @returns Mermaid flowchart string
  */
 export function generateMermaid(graph: UnifiedGraph): string {
-  // TODO: Implement Mermaid generation logic
-  throw new Error('Mermaid generator not yet implemented');
+  const lines: string[] = [];
+  
+  // Start with flowchart declaration
+  lines.push('flowchart TD');
+  
+  // Add node definitions
+  const nodeDefinitions = generateNodeDefinitions(graph.nodes);
+  lines.push(...nodeDefinitions.map(def => `    ${def}`));
+  
+  // Add edge definitions
+  const edgeDefinitions = generateEdgeDefinitions(graph.edges);
+  lines.push(...edgeDefinitions.map(def => `    ${def}`));
+  
+  return lines.join('\n');
 }
 
 /**
@@ -17,8 +29,10 @@ export function generateMermaid(graph: UnifiedGraph): string {
  * @returns Array of Mermaid node definition strings
  */
 function generateNodeDefinitions(nodes: GraphNode[]): string[] {
-  // TODO: Implement node definition generation
-  throw new Error('Node definition generation not yet implemented');
+  return nodes.map(node => {
+    const sanitizedId = sanitizeNodeId(node.id);
+    return `${sanitizedId}[${node.label}]`;
+  });
 }
 
 /**
@@ -27,8 +41,11 @@ function generateNodeDefinitions(nodes: GraphNode[]): string[] {
  * @returns Array of Mermaid edge definition strings
  */
 function generateEdgeDefinitions(edges: GraphEdge[]): string[] {
-  // TODO: Implement edge definition generation
-  throw new Error('Edge definition generation not yet implemented');
+  return edges.map(edge => {
+    const fromId = sanitizeNodeId(edge.from);
+    const toId = sanitizeNodeId(edge.to);
+    return `${fromId} --> ${toId}`;
+  });
 }
 
 /**

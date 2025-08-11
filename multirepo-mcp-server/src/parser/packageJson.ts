@@ -14,8 +14,19 @@ export function parseRepoDependencies(
   allRepoNames: string[],
   includeDevDeps: boolean = false
 ): string[] {
-  // TODO: Implement package.json parsing logic
-  throw new Error('Package.json parser not yet implemented');
+  const packageJsonPath = join(repoPath, 'package.json');
+  
+  // Read package.json file
+  const packageJson = readPackageJson(packageJsonPath);
+  if (!packageJson) {
+    return []; // No package.json found, return empty dependencies
+  }
+  
+  // Extract all dependencies
+  const dependencies = extractDependencies(packageJson, includeDevDeps);
+  
+  // Filter to only include known repositories
+  return filterRepoDependencies(dependencies, allRepoNames);
 }
 
 /**
@@ -24,8 +35,17 @@ export function parseRepoDependencies(
  * @returns Parsed package.json object or null if not found
  */
 function readPackageJson(packageJsonPath: string): any | null {
-  // TODO: Implement package.json reading
-  throw new Error('Package.json reading not yet implemented');
+  try {
+    if (!existsSync(packageJsonPath)) {
+      return null;
+    }
+    
+    const content = readFileSync(packageJsonPath, 'utf8');
+    return JSON.parse(content);
+  } catch (error) {
+    console.warn(`Failed to read package.json at ${packageJsonPath}:`, error);
+    return null;
+  }
 }
 
 /**
@@ -35,8 +55,19 @@ function readPackageJson(packageJsonPath: string): any | null {
  * @returns Array of dependency names
  */
 function extractDependencies(packageJson: any, includeDevDeps: boolean): string[] {
-  // TODO: Implement dependency extraction
-  throw new Error('Dependency extraction not yet implemented');
+  const dependencies: string[] = [];
+  
+  // Extract regular dependencies
+  if (packageJson.dependencies && typeof packageJson.dependencies === 'object') {
+    dependencies.push(...Object.keys(packageJson.dependencies));
+  }
+  
+  // Extract devDependencies if requested
+  if (includeDevDeps && packageJson.devDependencies && typeof packageJson.devDependencies === 'object') {
+    dependencies.push(...Object.keys(packageJson.devDependencies));
+  }
+  
+  return dependencies;
 }
 
 /**
@@ -46,6 +77,5 @@ function extractDependencies(packageJson: any, includeDevDeps: boolean): string[
  * @returns Array of repository dependencies
  */
 function filterRepoDependencies(dependencies: string[], knownRepos: string[]): string[] {
-  // TODO: Implement repository filtering
-  throw new Error('Repository filtering not yet implemented');
+  return dependencies.filter(dep => knownRepos.includes(dep));
 }
