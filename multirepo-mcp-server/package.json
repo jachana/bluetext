@@ -1,0 +1,24 @@
+{
+  "name": "multirepo-mcp-server",
+  "version": "0.1.0",
+  "description": "A Multirepo MCP Server for unified context across distributed codebases",
+  "type": "module",
+  "main": "build/index.js",
+  "scripts": {
+    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
+    "dev": "tsc --watch",
+    "start": "node build/index.js"
+  },
+  "keywords": ["mcp", "server", "multirepo", "dependencies", "graph"],
+  "author": "Hackathon Team",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.6.0",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/js-yaml": "^4.0.5",
+    "typescript": "^5.0.0"
+  }
+}
