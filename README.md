@@ -6,6 +6,7 @@ The Bluetext MCP server provides documentation on our framework for how to build
 
 Bluetext systems run on Polytope (https://polytope.com) which is a container orchestration platform that runs all software components in containers, e.g. Docker on your laptop and Kubernetes in the cloud. 
 
+.
 ## Prerequisite: Polytope
 
 You need Polytope installed on your computer to work with Bluetext. Here are instructions on how to install it: https://docs.cillers.com/polytope
