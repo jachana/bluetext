@@ -1,0 +1,33 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: bluetext-mcp-server
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      # Use gen2 execution environment for better performance and features.
+      annotations:
+        run.googleapis.com/execution-environment: gen2
+    spec:
+      containers:
+      - image: gcr.io/PROJECT_ID/bluetext-mcp-server:latest
+        ports:
+        - name: http1
+          containerPort: 3000
+        env:
+        - name: NODE_ENV
+          value: "production"
+        resources:
+          limits:
+            cpu: "1"
+            memory: "512Mi"
+        # A startup probe checks if the application has started.
+        # This is simpler than separate liveness and readiness probes.
+        startupProbe:
+          timeoutSeconds: 240
+          periodSeconds: 240
+          failureThreshold: 1
+          tcpSocket:
+            port: 3000

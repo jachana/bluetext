@@ -526,7 +526,7 @@ function detectUsagesInFile(params: {
         endpointPath,
         url: absoluteUrl || undefined,
         snippet,
-        tool,
+        tool: tool as "fetch" | "axios" | "requests" | "http" | "httpx" | "RestTemplate" | "HttpClient" | "generic" | "unknown",
       });
     }
   }

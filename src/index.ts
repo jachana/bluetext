@@ -7,7 +7,7 @@
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import {
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
@@ -15,6 +15,7 @@ import {
 import { readFileSync, readdirSync, existsSync } from "fs";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
+import { createServer, IncomingMessage, ServerResponse } from "http";
 
 // Multirepo imports
 import { loadConfig } from "./multirepo/config.js";
@@ -23,7 +24,6 @@ import { saveIndex } from "./multirepo/store.js";
 import { generateMermaid } from "./multirepo/mermaid.js";
 
 // Get the absolute path to the bluetext directory
-// This works by finding the directory containing this script file and going up to the project root
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const PROJECT_ROOT = resolve(__dirname, "..");
@@ -53,7 +53,6 @@ function getCodeGenModules(): string[] {
 
 /**
  * Build index mapping canonical Polytope module IDs (from markdown H1) to file basenames.
- * This allows module IDs like "redpanda!console" to be served from files like "redpanda-console.md".
  */
 function getStandardModuleIndex(): Record<string, string> {
   const index: Record<string, string> = {};
@@ -143,21 +142,6 @@ const server = new Server(
 
 /**
  * Handler for listing available documentation and multirepo resources.
- * Provides access to:
- * - /intro (intro.md) - Main Bluetext documentation overview
- * - /polytope-docs (polytope/intro.md)
- * - /code-gen-modules/<module-id> (code-gen-modules/<module-id>.md)
- * - /blueprints (blueprints/intro.md)
- * - /blueprints/<blueprint-id> (blueprints/<blueprint-id>/intro.md)
- * - /polytope/standard-modules/<module-id>
- * - /multirepo/config (resolved config JSON)
- * - /multirepo/summary (scan summary in markdown with mermaid)
- * - /multirepo/index.json (raw index JSON)
- * - /multirepo/graph.mmd (mermaid graph)
- *
- * Note: Per-repo endpoints/usages resources exist but are not enumerated here:
- * - /multirepo/repo/<repoId>/endpoints.json
- * - /multirepo/repo/<repoId>/usages.json
  */
 server.setRequestHandler(ListResourcesRequestSchema, async () => {
   const resources = [];
@@ -220,7 +204,7 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
     }
   }
 
-  // Add standard modules (use canonical IDs parsed from markdown H1)
+  // Add standard modules
   const stdIndex = getStandardModuleIndex();
   for (const moduleId of Object.keys(stdIndex)) {
     const fileBase = stdIndex[moduleId];
@@ -266,24 +250,10 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
 
 /**
  * Handler for reading the contents of documentation and multirepo resources.
- * Supports the following URI patterns:
- * - bluetext://intro
- * - bluetext://polytope-docs
- * - bluetext://code-gen-modules/<module-id>
- * - bluetext://blueprints
- * - bluetext://blueprints/<blueprint-id>
- * - bluetext://polytope/standard-modules/<module-id>
- * - bluetext://multirepo/config
- * - bluetext://multirepo/summary
- * - bluetext://multirepo/index.json
- * - bluetext://multirepo/graph.mmd
- * - bluetext://multirepo/repo/<repoId>/endpoints.json
- * - bluetext://multirepo/repo/<repoId>/usages.json
  */
 server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   const uri = request.params.uri;
 
-  // Parse the custom URI scheme: bluetext://resource-path
   if (!uri.startsWith("bluetext://")) {
     throw new Error(`Unsupported URI scheme: ${uri}`);
   }
@@ -382,13 +352,10 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
         ],
       };
     } else if (resourcePath.startsWith("multirepo/repo/")) {
-      // Patterns:
-      // multirepo/repo/<repoId>/endpoints.json
-      // multirepo/repo/<repoId>/usages.json
       const sub = resourcePath.substring("multirepo/repo/".length);
       const parts = sub.split("/");
       const repoId = parts[0];
-      const kind = parts.slice(1).join("/"); // endpoints.json or usages.json
+      const kind = parts.slice(1).join("/");
 
       const { index } = scanAndPersist();
 
@@ -419,7 +386,6 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
       } else {
         throw new Error(`Unknown multirepo repo resource path: ${resourcePath}`);
       }
-
     } else {
       throw new Error(`Unknown resource path: ${resourcePath}`);
     }
@@ -445,12 +411,75 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
 });
 
 /**
- * Start the server using stdio transport.
- * This allows the server to communicate via standard input/output streams.
+ * Start the server using SSE transport for remote deployment.
  */
 async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  const port = parseInt(process.env.PORT || "3000", 10);
+  const host = process.env.HOST || "0.0.0.0";
+  
+  const transports: { [sessionId: string]: SSEServerTransport } = {};
+
+  const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    
+    if (req.method === "OPTIONS") {
+      res.writeHead(200);
+      res.end();
+      return;
+    }
+    
+    if (req.method === "GET" && req.url === "/sse") {
+      const transport = new SSEServerTransport("/message", res);
+      transports[transport.sessionId] = transport;
+      await server.connect(transport);
+    } else if (req.method === "POST" && req.url?.startsWith("/message")) {
+      const sessionId = new URL(req.url, `http://${req.headers.host}`).searchParams.get("sessionId");
+      if (sessionId && transports[sessionId]) {
+        await transports[sessionId].handlePostMessage(req, res);
+      } else {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "No transport found for sessionId" }));
+      }
+    } else if (req.method === "GET" && req.url === "/health") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ 
+        status: "healthy", 
+        server: "bluetext-mcp", 
+        version: "0.1.0",
+        timestamp: new Date().toISOString()
+      }));
+    } else if (req.method === "GET" && req.url === "/") {
+      res.writeHead(200, { "Content-Type": "text/html" });
+      res.end(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Bluetext MCP Server</title>
+        </head>
+        <body>
+          <h1>Bluetext MCP Server</h1>
+        </body>
+        </html>
+      `);
+    } else {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Not found" }));
+    }
+  });
+  
+  httpServer.listen(port, host, () => {
+    console.log(`Bluetext MCP Server running on http://${host}:${port}`);
+  });
+  
+  process.on("SIGINT", () => {
+    httpServer.close(() => process.exit(0));
+  });
+  
+  process.on("SIGTERM", () => {
+    httpServer.close(() => process.exit(0));
+  });
 }
 
 main().catch((error) => {
