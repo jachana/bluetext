@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
 /**
- * MCP server that provides access to Bluetext documentation resources.
- * It serves documentation files from the polytope, code-gen-modules, and blueprints directories.
+ * MCP server that provides access to Bluetext documentation resources,
+ * and multirepo analysis resources (scan repos, detect endpoints/usages,
+ * map cross-repo relations, and generate a mermaid graph).
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -15,11 +16,25 @@ import { readFileSync, readdirSync, existsSync } from "fs";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 
+// Multirepo imports
+import { loadConfig } from "./multirepo/config.js";
+import { scanMultirepo } from "./multirepo/scanner.js";
+import { saveIndex } from "./multirepo/store.js";
+import { generateMermaid } from "./multirepo/mermaid.js";
+
 // Get the absolute path to the bluetext directory
 // This works by finding the directory containing this script file and going up to the project root
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const PROJECT_ROOT = resolve(__dirname, '..');
+const PROJECT_ROOT = resolve(__dirname, "..");
+
+// Ensure multirepo config resolves relative to project root if present
+if (!process.env.BLUETEXT_MULTIREPO_CONFIG) {
+  const defaultCfgPath = join(PROJECT_ROOT, "multirepo.config.json");
+  if (existsSync(defaultCfgPath)) {
+    process.env.BLUETEXT_MULTIREPO_CONFIG = defaultCfgPath;
+  }
+}
 
 /**
  * Get the list of available code generation modules
@@ -29,9 +44,9 @@ function getCodeGenModules(): string[] {
     const codeGenModulesPath = join(PROJECT_ROOT, "code-gen-modules");
     const moduleFiles = readdirSync(codeGenModulesPath);
     return moduleFiles
-      .filter(file => file.endsWith('.md'))
-      .map(file => file.replace('.md', ''));
-  } catch (error) {
+      .filter((file) => file.endsWith(".md"))
+      .map((file) => file.replace(".md", ""));
+  } catch {
     return [];
   }
 }
@@ -72,9 +87,9 @@ function getBlueprints(): string[] {
     const blueprintsPath = join(PROJECT_ROOT, "blueprints");
     const blueprintDirs = readdirSync(blueprintsPath, { withFileTypes: true });
     return blueprintDirs
-      .filter(dirent => dirent.isDirectory())
-      .map(dirent => dirent.name);
-  } catch (error) {
+      .filter((dirent) => dirent.isDirectory())
+      .map((dirent) => dirent.name);
+  } catch {
     return [];
   }
 }
@@ -87,16 +102,32 @@ function getStandardModules(): string[] {
     const standardModulesPath = join(PROJECT_ROOT, "polytope", "standard-modules");
     const moduleFiles = readdirSync(standardModulesPath);
     return moduleFiles
-      .filter(file => file.endsWith('.md'))
-      .map(file => file.replace('.md', ''));
-  } catch (error) {
+      .filter((file) => file.endsWith(".md"))
+      .map((file) => file.replace(".md", ""));
+  } catch {
     return [];
   }
 }
 
 /**
+ * Run a multirepo scan and persist the index to the configured indexPath.
+ */
+function scanAndPersist() {
+  const cfg = loadConfig();
+  const { index, summary } = scanMultirepo(cfg);
+  if (cfg.indexPath) {
+    try {
+      saveIndex(cfg.indexPath, index);
+    } catch {
+      // ignore persistence failures in MVP
+    }
+  }
+  return { cfg, index, summary };
+}
+
+/**
  * Create an MCP server with capabilities for resources only.
- * This server provides access to documentation files.
+ * This server provides access to documentation files and multirepo analysis resources.
  */
 const server = new Server(
   {
@@ -111,13 +142,22 @@ const server = new Server(
 );
 
 /**
- * Handler for listing available documentation resources.
+ * Handler for listing available documentation and multirepo resources.
  * Provides access to:
  * - /intro (intro.md) - Main Bluetext documentation overview
  * - /polytope-docs (polytope/intro.md)
  * - /code-gen-modules/<module-id> (code-gen-modules/<module-id>.md)
  * - /blueprints (blueprints/intro.md)
  * - /blueprints/<blueprint-id> (blueprints/<blueprint-id>/intro.md)
+ * - /polytope/standard-modules/<module-id>
+ * - /multirepo/config (resolved config JSON)
+ * - /multirepo/summary (scan summary in markdown with mermaid)
+ * - /multirepo/index.json (raw index JSON)
+ * - /multirepo/graph.mmd (mermaid graph)
+ *
+ * Note: Per-repo endpoints/usages resources exist but are not enumerated here:
+ * - /multirepo/repo/<repoId>/endpoints.json
+ * - /multirepo/repo/<repoId>/usages.json
  */
 server.setRequestHandler(ListResourcesRequestSchema, async () => {
   const resources = [];
@@ -129,7 +169,7 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
       uri: "bluetext://intro",
       mimeType: "text/markdown",
       name: "Bluetext Documentation",
-      description: "Main overview and quick start guide for Bluetext framework"
+      description: "Main overview and quick start guide for Bluetext framework",
     });
   }
 
@@ -140,7 +180,7 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
       uri: "bluetext://polytope-docs",
       mimeType: "text/markdown",
       name: "Polytope Documentation",
-      description: "Comprehensive documentation about Polytope platform"
+      description: "Comprehensive documentation about Polytope platform",
     });
   }
 
@@ -151,7 +191,7 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
       uri: `bluetext://code-gen-modules/${moduleId}`,
       mimeType: "text/markdown",
       name: `Code Gen Module: ${moduleId}`,
-      description: `Documentation for ${moduleId} code generation module`
+      description: `Documentation for ${moduleId} code generation module`,
     });
   }
 
@@ -162,7 +202,7 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
       uri: "bluetext://blueprints",
       mimeType: "text/markdown",
       name: "Blueprints Documentation",
-      description: "Introduction to Bluetext blueprints"
+      description: "Introduction to Bluetext blueprints",
     });
   }
 
@@ -175,7 +215,7 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
         uri: `bluetext://blueprints/${blueprintId}`,
         mimeType: "text/markdown",
         name: `Blueprint: ${blueprintId}`,
-        description: `Documentation for ${blueprintId} blueprint`
+        description: `Documentation for ${blueprintId} blueprint`,
       });
     }
   }
@@ -190,16 +230,42 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
         uri: `bluetext://polytope/standard-modules/${moduleId}`,
         mimeType: "text/markdown",
         name: `Polytope Module: polytope/${moduleId}`,
-        description: `Documentation for built-in Polytope module polytope/${moduleId}`
+        description: `Documentation for built-in Polytope module polytope/${moduleId}`,
       });
     }
   }
+
+  // Add multirepo analysis top-level resources
+  resources.push({
+    uri: "bluetext://multirepo/config",
+    mimeType: "application/json",
+    name: "Multirepo Config",
+    description: "Resolved multirepo configuration used by the server",
+  });
+  resources.push({
+    uri: "bluetext://multirepo/summary",
+    mimeType: "text/markdown",
+    name: "Multirepo Summary",
+    description: "Human-readable summary of the latest multirepo scan with a mermaid graph",
+  });
+  resources.push({
+    uri: "bluetext://multirepo/index.json",
+    mimeType: "application/json",
+    name: "Multirepo Index",
+    description: "Raw multirepo index JSON (repos, endpoints, usages, edges)",
+  });
+  resources.push({
+    uri: "bluetext://multirepo/graph.mmd",
+    mimeType: "text/plain",
+    name: "Multirepo Graph (Mermaid)",
+    description: "Cross-repo relation graph in Mermaid format",
+  });
 
   return { resources };
 });
 
 /**
- * Handler for reading the contents of documentation resources.
+ * Handler for reading the contents of documentation and multirepo resources.
  * Supports the following URI patterns:
  * - bluetext://intro
  * - bluetext://polytope-docs
@@ -207,15 +273,21 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
  * - bluetext://blueprints
  * - bluetext://blueprints/<blueprint-id>
  * - bluetext://polytope/standard-modules/<module-id>
+ * - bluetext://multirepo/config
+ * - bluetext://multirepo/summary
+ * - bluetext://multirepo/index.json
+ * - bluetext://multirepo/graph.mmd
+ * - bluetext://multirepo/repo/<repoId>/endpoints.json
+ * - bluetext://multirepo/repo/<repoId>/usages.json
  */
 server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   const uri = request.params.uri;
-  
+
   // Parse the custom URI scheme: bluetext://resource-path
   if (!uri.startsWith("bluetext://")) {
     throw new Error(`Unsupported URI scheme: ${uri}`);
   }
-  
+
   const resourcePath = uri.replace("bluetext://", "");
   let filePath: string;
   let content: string;
@@ -235,9 +307,119 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
       filePath = join(PROJECT_ROOT, "blueprints", blueprintId, "intro.md");
     } else if (resourcePath.startsWith("polytope/standard-modules/")) {
       const moduleId = resourcePath.replace("polytope/standard-modules/", "");
-      const stdIndex = getStandardModuleIndex();
-      const fileBase = stdIndex[moduleId] ?? moduleId.replace(/!/g, "-");
-      filePath = join(PROJECT_ROOT, "polytope", "standard-modules", `${fileBase}.md`);
+      filePath = join(PROJECT_ROOT, "polytope", "standard-modules", `${moduleId}.md`);
+    } else if (resourcePath === "multirepo/config") {
+      const cfg = loadConfig();
+      content = JSON.stringify(cfg, null, 2);
+      return {
+        contents: [
+          {
+            uri: request.params.uri,
+            mimeType: "application/json",
+            text: content,
+          },
+        ],
+      };
+    } else if (resourcePath === "multirepo/summary") {
+      const { index, summary } = scanAndPersist();
+      const mermaid = generateMermaid(index);
+      const md = [
+        "# Multirepo Scan Summary",
+        "",
+        `- Repos scanned: ${summary.reposScanned} (discovered: ${summary.reposDiscovered})`,
+        `- Files scanned: ${summary.filesScanned}`,
+        `- Endpoints found: ${summary.endpointsFound}`,
+        `- Usages found: ${summary.usagesFound}`,
+        `- Duration: ${summary.durationMs} ms`,
+        "",
+        "## Top Relations",
+      ];
+      const topEdges = [...index.edges].sort((a, b) => b.count - a.count).slice(0, 20);
+      if (topEdges.length === 0) {
+        md.push("_No cross-repo edges found._");
+      } else {
+        for (const e of topEdges) {
+          md.push(
+            `- ${index.repos[e.fromRepoId]?.name || e.fromRepoId} -> ${
+              index.repos[e.toRepoId]?.name || e.toRepoId
+            }: "${e.label}" (count: ${e.count})`
+          );
+        }
+      }
+      md.push("", "## Graph (Mermaid)", "", "```mermaid", mermaid, "```");
+      content = md.join("\n");
+      return {
+        contents: [
+          {
+            uri: request.params.uri,
+            mimeType: "text/markdown",
+            text: content,
+          },
+        ],
+      };
+    } else if (resourcePath === "multirepo/index.json") {
+      const { index } = scanAndPersist();
+      content = JSON.stringify(index, null, 2);
+      return {
+        contents: [
+          {
+            uri: request.params.uri,
+            mimeType: "application/json",
+            text: content,
+          },
+        ],
+      };
+    } else if (resourcePath === "multirepo/graph.mmd") {
+      const { index } = scanAndPersist();
+      content = generateMermaid(index);
+      return {
+        contents: [
+          {
+            uri: request.params.uri,
+            mimeType: "text/plain",
+            text: content,
+          },
+        ],
+      };
+    } else if (resourcePath.startsWith("multirepo/repo/")) {
+      // Patterns:
+      // multirepo/repo/<repoId>/endpoints.json
+      // multirepo/repo/<repoId>/usages.json
+      const sub = resourcePath.substring("multirepo/repo/".length);
+      const parts = sub.split("/");
+      const repoId = parts[0];
+      const kind = parts.slice(1).join("/"); // endpoints.json or usages.json
+
+      const { index } = scanAndPersist();
+
+      if (kind === "endpoints.json") {
+        const endpoints = Object.values(index.endpoints).filter((e) => e.repoId === repoId);
+        content = JSON.stringify(endpoints, null, 2);
+        return {
+          contents: [
+            {
+              uri: request.params.uri,
+              mimeType: "application/json",
+              text: content,
+            },
+          ],
+        };
+      } else if (kind === "usages.json") {
+        const usages = Object.values(index.usages).filter((u) => u.repoId === repoId);
+        content = JSON.stringify(usages, null, 2);
+        return {
+          contents: [
+            {
+              uri: request.params.uri,
+              mimeType: "application/json",
+              text: content,
+            },
+          ],
+        };
+      } else {
+        throw new Error(`Unknown multirepo repo resource path: ${resourcePath}`);
+      }
+
     } else {
       throw new Error(`Unknown resource path: ${resourcePath}`);
     }
@@ -249,11 +431,13 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     content = readFileSync(filePath, "utf-8");
 
     return {
-      contents: [{
-        uri: request.params.uri,
-        mimeType: "text/markdown",
-        text: content
-      }]
+      contents: [
+        {
+          uri: request.params.uri,
+          mimeType: "text/markdown",
+          text: content,
+        },
+      ],
     };
   } catch (error) {
     throw new Error(`Failed to read resource: ${error instanceof Error ? error.message : String(error)}`);
