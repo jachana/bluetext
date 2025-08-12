@@ -14,21 +14,23 @@
     "**/.vscode/**"
   ],
   "includeFileExtensions": [
-    ".ts",
-    ".tsx",
-    ".js",
-    ".jsx",
-    ".mjs",
-    ".cjs",
-    ".py",
-    ".json",
-    ".yaml",
-    ".yml"
+    ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs",
+    ".py", ".pyx", ".pyi",
+    ".go", ".mod",
+    ".java", ".kt", ".scala",
+    ".cs", ".fs", ".vb",
+    ".rb", ".php", ".swift",
+    ".rs", ".cpp", ".cc", ".cxx", ".c", ".h", ".hpp",
+    ".json", ".yaml", ".yml", ".toml", ".xml",
+    ".proto", ".graphql", ".sql"
   ],
   "urlBases": [
-    { "name": "payment-var", "repo": "demo-payment-service", "baseUrl": "/${PAYMENT_SERVICE_URL}" },
-    { "name": "transaction-var", "repo": "demo-transaction-service", "baseUrl": "/${TRANSACTION_SERVICE_URL}" },
-    { "name": "user-var", "repo": "demo-user-service", "baseUrl": "/${USER_SERVICE_URL}" }
+    { "name": "payment-service", "repo": "demo-payment-service", "baseUrl": "http://payment-service:3002" },
+    { "name": "transaction-service", "repo": "demo-transaction-service", "baseUrl": "http://transaction-service:3003" },
+    { "name": "user-service", "repo": "demo-user-service", "baseUrl": "http://user-service:3001" },
+    { "name": "payment-localhost", "repo": "demo-payment-service", "baseUrl": "http://localhost:3002" },
+    { "name": "transaction-localhost", "repo": "demo-transaction-service", "baseUrl": "http://localhost:3003" },
+    { "name": "user-localhost", "repo": "demo-user-service", "baseUrl": "http://localhost:3001" }
   ],
   "indexPath": "multirepo-index.json"
 }

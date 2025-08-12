@@ -70,7 +70,7 @@ export interface Usage {
   endpointPath: string; // the path string found in code
   url?: string; // if a full URL was detected
   snippet?: string; // small surrounding snippet
-  tool: "fetch" | "axios" | "requests" | "http" | "unknown";
+  tool: "fetch" | "axios" | "requests" | "http" | "httpx" | "RestTemplate" | "HttpClient" | "generic" | "unknown";
 }
 
 export interface CrossRepoEdge {

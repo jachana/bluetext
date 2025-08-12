@@ -113,37 +113,116 @@ function detectEndpointsInFile(params: {
   const feature = featureForFile(absFile, cfg);
   const seen = new Set<string>(); // de-duplicate by method|path|line within file
 
-  // Generic server object call: <obj>.<method>('/path', ...)
-  // Matches Express/Router/Fastify and also FastAPI decorators like @app.get('/path')
-  const genericCallRe =
-    /\b([A-Za-z_][A-Za-z0-9_]*)\.(get|post|put|delete|patch|options|head|all)\s*\(\s*(['"`])([^"'`]+)\3/g;
-  for (let m; (m = genericCallRe.exec(content)); ) {
-    const obj = m[1];
-    const method = toHttpMethod(m[2])!;
-    const path = ensureLeadingSlash(m[4]);
-    const line = getLineNumber(content, m.index);
-    const key = `${method}|${path}|${line}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+  // Language-agnostic endpoint detection patterns
+  const endpointPatterns = [
+    // Generic server object call: <obj>.<method>('/path', ...)
+    // Matches Express/Router/Fastify and also FastAPI decorators like @app.get('/path')
+    {
+      regex: /\b([A-Za-z_][A-Za-z0-9_]*)\.(get|post|put|delete|patch|options|head|all)\s*\(\s*(['"`])([^"'`]+)\3/g,
+      framework: (obj: string) => {
+        if (obj === "fastify") return "fastify";
+        if (obj === "router" || obj === "app") return "express";
+        return "generic";
+      }
+    },
+    
+    // Go Gin/Mux patterns: router.GET("/path", handler)
+    {
+      regex: /\b([A-Za-z_][A-Za-z0-9_]*)\.(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD)\s*\(\s*(['"`])([^"'`]+)\3/g,
+      framework: () => "gin"
+    },
+    
+    // Go Gin SetupRoutes function patterns: router.GET("/path", handler)
+    {
+      regex: /router\.(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD)\s*\(\s*(['"`])([^"'`]+)\2/g,
+      framework: () => "gin"
+    },
+    
+    // Go HTTP ServeMux: http.HandleFunc("/path", handler)
+    {
+      regex: /\bhttp\.HandleFunc\s*\(\s*(['"`])([^"'`]+)\1/g,
+      framework: () => "http",
+      method: () => "ALL" as HttpMethod
+    },
+    
+    // Go Gorilla Mux: r.HandleFunc("/path", handler).Methods("GET", "POST")
+    {
+      regex: /\b([A-Za-z_][A-Za-z0-9_]*)\s*\.\s*HandleFunc\s*\(\s*(['"`])([^"'`]+)\2[^)]*\)\s*\.\s*Methods\s*\(\s*(['"`])([^"'`]+)\4/g,
+      framework: () => "gorilla",
+      extractMethod: (match: RegExpExecArray) => match[5]
+    },
+    
+    // Java Spring: @GetMapping("/path"), @PostMapping("/path"), etc.
+    {
+      regex: /@(Get|Post|Put|Delete|Patch|Request)Mapping\s*\(\s*(['"`])([^"'`]+)\2/g,
+      framework: () => "spring"
+    },
+    
+    // C# ASP.NET: [HttpGet("/path")], [Route("/path")]
+    {
+      regex: /\[Http(Get|Post|Put|Delete|Patch)\s*\(\s*(['"`])([^"'`]+)\2\s*\)\]/g,
+      framework: () => "aspnet"
+    },
+    
+    // Ruby Rails: get '/path', post '/path', etc.
+    {
+      regex: /\b(get|post|put|delete|patch)\s+(['"`])([^"'`]+)\2/g,
+      framework: () => "rails"
+    },
+    
+    // PHP Laravel: Route::get('/path'), Route::post('/path')
+    {
+      regex: /\bRoute::(get|post|put|delete|patch|options|head|any)\s*\(\s*(['"`])([^"'`]+)\2/g,
+      framework: () => "laravel"
+    }
+  ];
 
-    // best-effort framework hint
-    let framework: string = "unknown";
-    if (obj === "fastify") framework = "fastify";
-    else if (obj === "router" || obj === "app") framework = "express";
+  for (const pattern of endpointPatterns) {
+    pattern.regex.lastIndex = 0; // Reset regex state
+    for (let m; (m = pattern.regex.exec(content)); ) {
+      let method: HttpMethod;
+      let path: string;
+      let framework: string;
+      
+      if (pattern.extractMethod) {
+        // Special handling for complex patterns like Gorilla Mux
+        const methodStr = pattern.extractMethod(m);
+        method = toHttpMethod(methodStr) || "GET";
+        path = ensureLeadingSlash(m[3]);
+        framework = pattern.framework();
+      } else if (pattern.method) {
+        // Fixed method patterns
+        method = pattern.method();
+        path = ensureLeadingSlash(m[2]);
+        framework = pattern.framework();
+      } else {
+        // Standard patterns
+        const methodIndex = m[2] ? 2 : 1;
+        const pathIndex = m[4] ? 4 : (m[3] ? 3 : 2);
+        method = toHttpMethod(m[methodIndex]) || "GET";
+        path = ensureLeadingSlash(m[pathIndex]);
+        framework = typeof pattern.framework === 'function' ? pattern.framework(m[1] || '') : pattern.framework;
+      }
+      
+      const line = getLineNumber(content, m.index);
+      const key = `${method}|${path}|${line}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
 
-    const id = sha1(`${repoId}|${framework}|${method}|${path}|${relFile}|${line}`);
-    endpoints.push({
-      id,
-      repoId,
-      feature,
-      method,
-      path,
-      framework,
-      file: normalizePath(absFile),
-      relFile: relFile.replace(/\\/g, "/"),
-      line,
-      sourceType: "code",
-    });
+      const id = sha1(`${repoId}|${framework}|${method}|${path}|${relFile}|${line}`);
+      endpoints.push({
+        id,
+        repoId,
+        feature,
+        method,
+        path,
+        framework,
+        file: normalizePath(absFile),
+        relFile: relFile.replace(/\\/g, "/"),
+        line,
+        sourceType: "code",
+      });
+    }
   }
 
   // Python Flask-style: @app.route('/path', methods=['GET','POST',...])
@@ -277,130 +356,179 @@ function detectUsagesInFile(params: {
   const { repoId, absFile, relFile, content } = params;
   const usages: Usage[] = [];
 
-  // fetch(url, { method: '...' })
-  const fetchRe = /\bfetch\s*\(\s*(['"`])([^"'`]+)\1\s*(,\s*\{[^)]*\))?/g;
-  for (let m; (m = fetchRe.exec(content)); ) {
-    const urlOrPath = m[2];
-    const opts = m[3] || "";
-    let method: HttpMethod | undefined;
-    const methodRe = /method\s*:\s*(['"`])([A-Za-z]+)\1/i;
-    const mm = methodRe.exec(opts);
-    if (mm) method = toHttpMethod(mm[2]);
-
-    const line = getLineNumber(content, m.index);
-    const snippet = getLineSnippet(content, m.index);
-    const { endpointPath, absoluteUrl } = splitUrl(urlOrPath);
-    const id = sha1(`${repoId}|fetch|${endpointPath}|${relFile}|${line}|${method || "UNK"}`);
-    usages.push({
-      id,
-      repoId,
-      file: normalizePath(absFile),
-      relFile: relFile.replace(/\\/g, "/"),
-      line,
-      method,
-      endpointPath,
-      url: absoluteUrl || undefined,
-      snippet,
+  // Language-agnostic HTTP client detection patterns
+  const usagePatterns = [
+    // JavaScript/TypeScript: fetch(url, { method: '...' })
+    {
+      regex: /\bfetch\s*\(\s*(['"`])([^"'`]+)\1\s*(,\s*\{[^}]*\})?/g,
       tool: "fetch",
-    });
-  }
-
-  // axios.method(url)
-  const axiosMethodRe =
-    /\baxios\.(get|post|put|delete|patch|options|head|all)\s*\(\s*(['"`])([^"'`]+)\2/g;
-  for (let m; (m = axiosMethodRe.exec(content)); ) {
-    const method = toHttpMethod(m[1])!;
-    const urlOrPath = m[3];
-    const line = getLineNumber(content, m.index);
-    const snippet = getLineSnippet(content, m.index);
-    const { endpointPath, absoluteUrl } = splitUrl(urlOrPath);
-    const id = sha1(`${repoId}|axiosm|${endpointPath}|${relFile}|${line}|${method}`);
-    usages.push({
-      id,
-      repoId,
-      file: normalizePath(absFile),
-      relFile: relFile.replace(/\\/g, "/"),
-      line,
-      method,
-      endpointPath,
-      url: absoluteUrl || undefined,
-      snippet,
+      extractMethod: (match: RegExpExecArray) => {
+        const opts = match[3] || "";
+        const methodRe = /method\s*:\s*(['"`])([A-Za-z]+)\1/i;
+        const mm = methodRe.exec(opts);
+        return mm ? toHttpMethod(mm[2]) : undefined;
+      }
+    },
+    
+    // JavaScript/TypeScript: axios.method(url)
+    {
+      regex: /\baxios\.(get|post|put|delete|patch|options|head|all)\s*\(\s*(['"`])([^"'`]+)\2/g,
       tool: "axios",
-    });
-  }
-
-  // axios(url, { method: '...' })
-  const axiosRe = /\baxios\s*\(\s*(['"`])([^"'`]+)\1\s*(,\s*\{[^)]*\))?/g;
-  for (let m; (m = axiosRe.exec(content)); ) {
-    const urlOrPath = m[2];
-    const opts = m[3] || "";
-    let method: HttpMethod | undefined;
-    const methodRe = /method\s*:\s*(['"`])([A-Za-z]+)\1/i;
-    const mm = methodRe.exec(opts);
-    if (mm) method = toHttpMethod(mm[2]);
-
-    const line = getLineNumber(content, m.index);
-    const snippet = getLineSnippet(content, m.index);
-    const { endpointPath, absoluteUrl } = splitUrl(urlOrPath);
-    const id = sha1(`${repoId}|axios|${endpointPath}|${relFile}|${line}|${method || "UNK"}`);
-    usages.push({
-      id,
-      repoId,
-      file: normalizePath(absFile),
-      relFile: relFile.replace(/\\/g, "/"),
-      line,
-      method,
-      endpointPath,
-      url: absoluteUrl || undefined,
-      snippet,
+      methodIndex: 1,
+      urlIndex: 3
+    },
+    
+    // JavaScript/TypeScript: axios(url, { method: '...' })
+    {
+      regex: /\baxios\s*\(\s*(['"`])([^"'`]+)\1\s*(,\s*\{[^}]*\})?/g,
       tool: "axios",
-    });
-  }
-
-  // http(s).request(url)
-  const httpReqRe = /\bhttps?\s*\.\s*request\s*\(\s*(['"`])([^"'`]+)\1/g;
-  for (let m; (m = httpReqRe.exec(content)); ) {
-    const urlOrPath = m[2];
-    const line = getLineNumber(content, m.index);
-    const snippet = getLineSnippet(content, m.index);
-    const { endpointPath, absoluteUrl } = splitUrl(urlOrPath);
-    const id = sha1(`${repoId}|http|${endpointPath}|${relFile}|${line}`);
-    usages.push({
-      id,
-      repoId,
-      file: normalizePath(absFile),
-      relFile: relFile.replace(/\\/g, "/"),
-      line,
-      method: undefined,
-      endpointPath,
-      url: absoluteUrl || undefined,
-      snippet,
+      urlIndex: 2,
+      extractMethod: (match: RegExpExecArray) => {
+        const opts = match[3] || "";
+        const methodRe = /method\s*:\s*(['"`])([A-Za-z]+)\1/i;
+        const mm = methodRe.exec(opts);
+        return mm ? toHttpMethod(mm[2]) : undefined;
+      }
+    },
+    
+    // Node.js: http(s).request(url)
+    {
+      regex: /\bhttps?\s*\.\s*request\s*\(\s*(['"`])([^"'`]+)\1/g,
       tool: "http",
-    });
-  }
-
-  // Python requests.<method>(url)
-  const requestsRe =
-    /\brequests\.(get|post|put|delete|patch|options|head)\s*\(\s*(['"])([^'"]+)\2/g;
-  for (let m; (m = requestsRe.exec(content)); ) {
-    const method = toHttpMethod(m[1])!;
-    const urlOrPath = m[3];
-    const line = getLineNumber(content, m.index);
-    const snippet = getLineSnippet(content, m.index);
-    const { endpointPath, absoluteUrl } = splitUrl(urlOrPath);
-    const id = sha1(`${repoId}|requests|${endpointPath}|${relFile}|${line}|${method}`);
-    usages.push({
-      id,
-      repoId,
-      file: normalizePath(absFile),
-      relFile: relFile.replace(/\\/g, "/"),
-      line,
-      method,
-      endpointPath,
-      url: absoluteUrl || undefined,
-      snippet,
+      urlIndex: 2
+    },
+    
+    // Python: requests.method(url)
+    {
+      regex: /\brequests\.(get|post|put|delete|patch|options|head)\s*\(\s*(['"])([^'"]+)\2/g,
       tool: "requests",
-    });
+      methodIndex: 1,
+      urlIndex: 3
+    },
+    
+    // Python: httpx.method(url)
+    {
+      regex: /\bhttpx\.(get|post|put|delete|patch|options|head)\s*\(\s*(['"])([^'"]+)\2/g,
+      tool: "httpx",
+      methodIndex: 1,
+      urlIndex: 3
+    },
+    
+    // Go: http.Get(url), http.Post(url, ...), etc.
+    {
+      regex: /\bhttp\.(Get|Post|Put|Delete|Patch|Head)\s*\(\s*(['"`])([^"'`]+)\2/g,
+      tool: "http",
+      methodIndex: 1,
+      urlIndex: 3
+    },
+    
+    // Go: client.Do(req) with NewRequest - more complex pattern
+    {
+      regex: /http\.NewRequest\s*\(\s*(['"`])([A-Z]+)\1\s*,\s*(['"`])([^"'`]+)\3/g,
+      tool: "http",
+      methodIndex: 2,
+      urlIndex: 4
+    },
+    
+    // Java: RestTemplate methods
+    {
+      regex: /\b(?:restTemplate|RestTemplate)\s*\.\s*(getForObject|postForObject|put|delete|exchange)\s*\(\s*(['"`])([^"'`]+)\2/g,
+      tool: "RestTemplate",
+      methodIndex: 1,
+      urlIndex: 3,
+      mapMethod: (method: string) => {
+        const mapping: Record<string, HttpMethod> = {
+          'getForObject': 'GET',
+          'postForObject': 'POST',
+          'put': 'PUT',
+          'delete': 'DELETE',
+          'exchange': 'GET' // default, could be any
+        };
+        return mapping[method] || 'GET';
+      }
+    },
+    
+    // C# HttpClient
+    {
+      regex: /\b(?:httpClient|HttpClient)\s*\.\s*(GetAsync|PostAsync|PutAsync|DeleteAsync|SendAsync)\s*\(\s*(['"`])([^"'`]+)\2/g,
+      tool: "HttpClient",
+      methodIndex: 1,
+      urlIndex: 3,
+      mapMethod: (method: string) => {
+        const mapping: Record<string, HttpMethod> = {
+          'GetAsync': 'GET',
+          'PostAsync': 'POST',
+          'PutAsync': 'PUT',
+          'DeleteAsync': 'DELETE',
+          'SendAsync': 'GET' // default
+        };
+        return mapping[method] || 'GET';
+      }
+    },
+    
+    // Generic URL patterns in strings (fallback)
+    {
+      regex: /(['"`])(https?:\/\/[^"'`\s]+(?:\/[^"'`\s]*)?)\1/g,
+      tool: "generic",
+      urlIndex: 2,
+      isGeneric: true
+    }
+  ];
+
+  for (const pattern of usagePatterns) {
+    pattern.regex.lastIndex = 0; // Reset regex state
+    for (let m; (m = pattern.regex.exec(content)); ) {
+      let method: HttpMethod | undefined;
+      let urlOrPath: string;
+      let tool: string = pattern.tool;
+      
+      // Extract URL
+      urlOrPath = m[pattern.urlIndex || 2];
+      
+      // Extract or determine method
+      if (pattern.extractMethod) {
+        method = pattern.extractMethod(m);
+      } else if (pattern.methodIndex) {
+        const methodStr = m[pattern.methodIndex];
+        if (pattern.mapMethod) {
+          method = pattern.mapMethod(methodStr);
+        } else {
+          method = toHttpMethod(methodStr);
+        }
+      }
+      
+      // Skip generic URL patterns that don't look like API calls
+      if (pattern.isGeneric) {
+        // Only include URLs that look like API endpoints
+        if (!urlOrPath.includes('/api/') && 
+            !urlOrPath.includes('/v1/') && 
+            !urlOrPath.includes('/v2/') &&
+            !urlOrPath.match(/\/[a-z-]+\/\d+/) && // resource/id pattern
+            !urlOrPath.match(/localhost:\d+/) &&
+            !urlOrPath.match(/:\d{4}/) // port numbers
+        ) {
+          continue;
+        }
+      }
+
+      const line = getLineNumber(content, m.index);
+      const snippet = getLineSnippet(content, m.index);
+      const { endpointPath, absoluteUrl } = splitUrl(urlOrPath);
+      const id = sha1(`${repoId}|${tool}|${endpointPath}|${relFile}|${line}|${method || "UNK"}`);
+      
+      usages.push({
+        id,
+        repoId,
+        file: normalizePath(absFile),
+        relFile: relFile.replace(/\\/g, "/"),
+        line,
+        method,
+        endpointPath,
+        url: absoluteUrl || undefined,
+        snippet,
+        tool,
+      });
+    }
   }
 
   return usages;
@@ -502,12 +630,38 @@ function mapUsagesToEndpoints(params: {
     // Build candidate list based on absolute URL or endpointPath prefix
     const candidates: { base: any; pathAfterBase: string }[] = [];
     for (const base of cfg.urlBases) {
+      // Direct URL matching
       if (u.url && u.url.startsWith(base.baseUrl)) {
         const after = ensureLeadingSlash(u.url.slice(base.baseUrl.length).split("?")[0] || u.endpointPath);
         candidates.push({ base, pathAfterBase: after });
-      } else if (u.endpointPath && u.endpointPath.startsWith(base.baseUrl)) {
+      } 
+      // Direct path matching
+      else if (u.endpointPath && u.endpointPath.startsWith(base.baseUrl)) {
         const after = ensureLeadingSlash(u.endpointPath.slice(base.baseUrl.length).split("?")[0] || "/");
         candidates.push({ base, pathAfterBase: after });
+      }
+      // Environment variable pattern matching
+      else if (u.endpointPath) {
+        // Handle patterns like /${PAYMENT_SERVICE_URL}/users/created
+        const envVarPatterns = [
+          { pattern: /^\$\{PAYMENT_SERVICE_URL\}/, serviceUrl: "http://payment-service:3002", repo: "demo-payment-service" },
+          { pattern: /^\$\{TRANSACTION_SERVICE_URL\}/, serviceUrl: "http://transaction-service:3003", repo: "demo-transaction-service" },
+          { pattern: /^\$\{USER_SERVICE_URL\}/, serviceUrl: "http://user-service:3001", repo: "demo-user-service" },
+          { pattern: /^\/\$\{PAYMENT_SERVICE_URL\}/, serviceUrl: "http://payment-service:3002", repo: "demo-payment-service" },
+          { pattern: /^\/\$\{TRANSACTION_SERVICE_URL\}/, serviceUrl: "http://transaction-service:3003", repo: "demo-transaction-service" },
+          { pattern: /^\/\$\{USER_SERVICE_URL\}/, serviceUrl: "http://user-service:3001", repo: "demo-user-service" }
+        ];
+        
+        for (const envPattern of envVarPatterns) {
+          if (envPattern.pattern.test(u.endpointPath) && base.baseUrl === envPattern.serviceUrl) {
+            const after = ensureLeadingSlash(u.endpointPath.replace(envPattern.pattern, ""));
+            candidates.push({ 
+              base: { ...base, repo: envPattern.repo }, 
+              pathAfterBase: after 
+            });
+            break;
+          }
+        }
       }
     }
 
