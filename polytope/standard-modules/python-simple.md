@@ -1,4 +1,4 @@
-# polytope/python-simple
+# polytope/python!simple
 
 Runs a Python container with minimal configuration for simple applications.
 
@@ -73,7 +73,7 @@ Services are defined with a simplified format:
 ```yaml
 modules:
   - id: simple-app
-    module: polytope/python-simple
+    module: polytope/python!simple
     args:
       code:
         type: host
