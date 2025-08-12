@@ -2,6 +2,8 @@
 
 This module adds npm packages to a Node.js module using yarn with the `--no-install` flag.
 
+Check if the add-package-npm module is added to the polytope.yml file. If not, add it. If you try to run this module before adding it, you will fail. 
+
 ## Polytope Module Spec
 
 ```yaml

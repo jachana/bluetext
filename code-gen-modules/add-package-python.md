@@ -2,6 +2,7 @@
 
 This module adds Python packages to a Python module using uv package manager.
 
+Check if the add-package-python module is added to the polytope.yml file. If not, add it. If you try to run this module before adding it, you will fail. 
 
 ## Polytope Module spec
 ```yaml

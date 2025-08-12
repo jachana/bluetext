@@ -2,3 +2,5 @@ node_modules/
 build/
 *.log
 .env*
+multirepo-index.json
+MULTIREPO_PLAN.md

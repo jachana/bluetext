@@ -1,4 +1,4 @@
-# polytope/redpanda-connect
+# polytope/redpanda!connect
 
 Runs Redpanda Connect for data streaming and transformation pipelines.
 
@@ -65,7 +65,7 @@ The module exposes:
 ```yaml
 modules:
   - id: data-pipeline
-    module: polytope/redpanda-connect
+    module: polytope/redpanda!connect
     args:
       config-file:
         type: host

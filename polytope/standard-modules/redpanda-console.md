@@ -1,4 +1,4 @@
-# polytope/redpanda-console
+# polytope/redpanda!console
 
 Runs the Redpanda console web UI for managing and monitoring Redpanda/Kafka clusters.
 
@@ -128,7 +128,7 @@ The module exposes:
 ```yaml
 modules:
   - id: console
-    module: polytope/redpanda-console
+    module: polytope/redpanda!console
     args:
       brokers:
         - host: redpanda

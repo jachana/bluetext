@@ -86,7 +86,7 @@ The templates should be specified as consicely as possible. Keep the complexity 
 
 The templates should be specified before the modules. 
 
-## Example polytope.yml 
+### Example polytope.yml 
 ```yaml
 templates:
   - id: api-stack
@@ -97,7 +97,7 @@ templates:
 modules:
   - id: api
     module: polytope/python
-    into: "Python API server (blueprint: python-api)"
+    info: "Python API server (blueprint: python-api)"
     args:
       port: pt.value api_port
       code: { type: host, path: ./modules/api }
@@ -112,6 +112,24 @@ modules:
 ```
 
 This structure ensures maintainable, environment-agnostic, and scalable Polytope applications.
+
+
+### Module Parameters
+
+The `params` attribute specifies which parameters the module should be instantiated with. Parameters with a `default` value do not need to be provided when instantiating the module.
+
+### Parent Modules
+
+Every Polytope, except the `polytope/container` module, has a parent module that is specified in the module attribute. 
+
+E.g. 
+```yaml
+modules:
+  - id: api
+    module: polytope/python # Parent module
+```
+
+The `args` attribute specifies which parameters to instantiate the parent module with. 
 
 ### Module Custom Code
 
@@ -129,9 +147,9 @@ Polytope values and secrets are always strings.
 
 Use two-module pattern for type conversion:
 - Top-level module: handles value/secret dereferencing
-- Base module: handles type conversion with `#pt-js`
+- Base module: handles type conversion with `#pt-clj`
 
-**Important: `pt.value` and `pt.secret` is not available in `"#pt-js "` scripts, e.g. `"#pt-js parseInt(pt.value['port'])"` will not work.** 
+**Important: `pt.value` and `pt.secret` is not available in `"#pt-clj "` scripts, e.g. `"#pt-clj (Integer/parseInt (pt.value "port"))"` will not work.**
 
 ### Persistent Volumes
 
@@ -180,3 +198,7 @@ If there is a relevant workflow provided below, you should follow it and make ap
 6. Check if the generated code fulfills the user's requirements, or if some adjustments need to be made, e.g. some functionality may need to be implemented in the added module's code. 
 7. If the values_and_secrets.defaults.yaml script was updated, run it, don't just tell the user to do it.
 
+### Updating a Polytope module
+1. Check if the module is based on a Blueprint by checking if the `info` attribute contains a specification of which blueprint it is based on, e.g. `info: ... (blueprint: web-app)`. 
+2. If it does not specify that it is based on a blueprint, you are on your own and should not continue this workflow. If it is based on a blueprint, read it's documentation resources at `bluetext://blueprints/<blueprint-id>`.
+3. Follow all the instructions that are relevant to updating the module.
