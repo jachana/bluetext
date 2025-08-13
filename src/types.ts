@@ -35,6 +35,16 @@ export interface MultirepoConfig {
   excludeGlobs?: string[]; // file/directory patterns to exclude
   includeFileExtensions?: string[]; // e.g. [".ts",".js",".py",".json",".yaml",".yml"]
   indexPath?: string; // optional: custom index path for persistence
+  
+  // Enhanced auto-discovery options
+  autoDiscovery?: {
+    enabled?: boolean; // Enable auto-discovery from current working directory
+    maxDepth?: number; // Maximum directory depth to search
+    minConfidence?: number; // Minimum project confidence score (0-100)
+    includeHidden?: boolean; // Include hidden directories (.git, etc.)
+    excludePatterns?: string[]; // Additional patterns to exclude from discovery
+    workspaceRoots?: string[]; // Additional roots to search for projects
+  };
 }
 
 export interface RepoInfo {

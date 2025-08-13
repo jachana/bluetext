@@ -3,7 +3,7 @@
 /**
  * Configurable MCP server that provides access to Bluetext documentation resources,
  * and multirepo analysis resources. Configuration can be passed via environment variables
- * or MCP tools instead of requiring a config file.
+ * or initialization parameters instead of requiring a config file.
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -20,14 +20,10 @@ import { fileURLToPath } from "url";
 import { createServer, IncomingMessage, ServerResponse } from "http";
 
 // Multirepo imports
-import { scanMultirepo, scanMultirepoWithChanges } from "./multirepo/scanner.js";
-import { saveIndex, loadIndex } from "./multirepo/store.js";
+import { scanMultirepo } from "./multirepo/scanner.js";
+import { saveIndex } from "./multirepo/store.js";
 import { generateMermaid } from "./multirepo/mermaid.js";
 import { MultirepoConfig } from "./types.js";
-import { 
-  RepositoryWatcher, 
-  CHANGE_DETECTION_PRESETS 
-} from "./multirepo/change-detection.js";
 
 // Get the absolute path to the bluetext directory
 const __filename = fileURLToPath(import.meta.url);
@@ -40,7 +36,7 @@ const PROJECT_ROOT = resolve(__dirname, "..");
 function loadConfigFromEnv(): MultirepoConfig {
   const config: MultirepoConfig = {};
 
-  // Parse repos from environment - this is the key part!
+  // Parse repos from environment
   const reposEnv = process.env.BLUETEXT_REPOS;
   if (reposEnv) {
     try {
@@ -50,29 +46,91 @@ function loadConfigFromEnv(): MultirepoConfig {
     }
   }
 
-  // Parse auto-discovery config from environment
-  const autoDiscoveryEnv = process.env.BLUETEXT_AUTO_DISCOVERY;
-  if (autoDiscoveryEnv) {
+  // Parse exclude globs
+  const excludeGlobsEnv = process.env.BLUETEXT_EXCLUDE_GLOBS;
+  if (excludeGlobsEnv) {
     try {
-      config.autoDiscovery = JSON.parse(autoDiscoveryEnv);
+      config.excludeGlobs = JSON.parse(excludeGlobsEnv);
     } catch (e) {
-      console.warn("Failed to parse BLUETEXT_AUTO_DISCOVERY:", e);
+      config.excludeGlobs = excludeGlobsEnv.split(',').map(s => s.trim());
     }
   }
 
-  // Start with empty repos if none configured - no hardcoded defaults
-  if (!config.repos) {
-    config.repos = [];
+  // Parse include file extensions
+  const includeExtensionsEnv = process.env.BLUETEXT_INCLUDE_EXTENSIONS;
+  if (includeExtensionsEnv) {
+    try {
+      config.includeFileExtensions = JSON.parse(includeExtensionsEnv);
+    } catch (e) {
+      config.includeFileExtensions = includeExtensionsEnv.split(',').map(s => s.trim());
+    }
   }
 
-  // Simple defaults for other settings
-  config.excludeGlobs = [
-    "**/node_modules/**", "**/.git/**", "**/dist/**", "**/build/**"
-  ];
-  config.includeFileExtensions = [
-    ".ts", ".js", ".py", ".json", ".yaml", ".yml"
-  ];
-  config.indexPath = "multirepo-index.json";
+  // Parse URL bases
+  const urlBasesEnv = process.env.BLUETEXT_URL_BASES;
+  if (urlBasesEnv) {
+    try {
+      config.urlBases = JSON.parse(urlBasesEnv);
+    } catch (e) {
+      console.warn("Failed to parse BLUETEXT_URL_BASES:", e);
+    }
+  }
+
+  // Index path
+  const indexPathEnv = process.env.BLUETEXT_INDEX_PATH;
+  if (indexPathEnv) {
+    config.indexPath = indexPathEnv;
+  }
+
+  // Apply defaults if not provided
+  if (!config.repos || config.repos.length === 0) {
+    config.repos = [
+      { "name": "demo-transaction-service", "path": "../demo-transaction-service" },
+      { "name": "demo-payment-service", "path": "../demo-payment-service" },
+      { "name": "demo-user-service", "path": "../demo-user-service" }
+    ];
+  }
+
+  if (!config.excludeGlobs) {
+    config.excludeGlobs = [
+      "**/node_modules/**",
+      "**/.git/**",
+      "**/dist/**",
+      "**/build/**",
+      "**/.venv/**",
+      "**/.idea/**",
+      "**/.vscode/**"
+    ];
+  }
+
+  if (!config.includeFileExtensions) {
+    config.includeFileExtensions = [
+      ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs",
+      ".py", ".pyx", ".pyi",
+      ".go", ".mod",
+      ".java", ".kt", ".scala",
+      ".cs", ".fs", ".vb",
+      ".rb", ".php", ".swift",
+      ".rs", ".cpp", ".cc", ".cxx", ".c", ".h", ".hpp",
+      ".json", ".yaml", ".yml", ".toml", ".xml",
+      ".proto", ".graphql", ".sql"
+    ];
+  }
+
+  if (!config.urlBases) {
+    config.urlBases = [
+      { "name": "payment-service", "repo": "demo-payment-service", "baseUrl": "http://payment-service:3002" },
+      { "name": "transaction-service", "repo": "demo-transaction-service", "baseUrl": "http://transaction-service:3003" },
+      { "name": "user-service", "repo": "demo-user-service", "baseUrl": "http://user-service:3001" },
+      { "name": "payment-localhost", "repo": "demo-payment-service", "baseUrl": "http://localhost:3002" },
+      { "name": "transaction-localhost", "repo": "demo-transaction-service", "baseUrl": "http://localhost:3003" },
+      { "name": "user-localhost", "repo": "demo-user-service", "baseUrl": "http://localhost:3001" }
+    ];
+  }
+
+  if (!config.indexPath) {
+    config.indexPath = "multirepo-index.json";
+  }
 
   return config;
 }
@@ -173,68 +231,67 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
       {
-        name: "configure_repos",
-        description: "Configure the repositories to scan (the key part - paths or URLs)",
+        name: "configure_multirepo",
+        description: "Configure the multirepo scanner with repositories, exclude patterns, and URL bases",
         inputSchema: {
           type: "object",
           properties: {
             repos: {
               type: "array",
-              description: "List of repositories to scan - the essential configuration",
+              description: "List of repositories to scan",
               items: {
                 type: "object",
                 properties: {
                   name: { type: "string", description: "Repository name" },
-                  path: { type: "string", description: "Local path to repository (e.g., '../my-repo')" },
-                  url: { type: "string", description: "Remote URL (e.g., 'https://github.com/user/repo')" }
+                  path: { type: "string", description: "Local path to repository" },
+                  url: { type: "string", description: "Optional remote URL" },
+                  branch: { type: "string", description: "Optional branch name" }
                 },
-                required: ["name"],
-                oneOf: [
-                  { required: ["path"] },
-                  { required: ["url"] }
-                ]
+                required: ["name", "path"]
               }
-            }
-          },
-          required: ["repos"]
-        }
-      },
-      {
-        name: "auto_discover_repos",
-        description: "Automatically discover project repositories from workspace roots",
-        inputSchema: {
-          type: "object",
-          properties: {
-            workspaceRoots: {
+            },
+            excludeGlobs: {
               type: "array",
-              description: "Root directories to search for projects (defaults to current directory)",
+              description: "Glob patterns to exclude from scanning",
               items: { type: "string" }
             },
-            maxDepth: {
-              type: "number",
-              description: "Maximum directory depth to search (default: 3)",
-              minimum: 1,
-              maximum: 10
+            includeFileExtensions: {
+              type: "array",
+              description: "File extensions to include in scanning",
+              items: { type: "string" }
             },
-            minConfidence: {
-              type: "number", 
-              description: "Minimum project confidence score 0-100 (default: 25)",
-              minimum: 0,
-              maximum: 100
+            urlBases: {
+              type: "array",
+              description: "URL base mappings for connecting usages to endpoints",
+              items: {
+                type: "object",
+                properties: {
+                  name: { type: "string", description: "Base name" },
+                  repo: { type: "string", description: "Repository name" },
+                  baseUrl: { type: "string", description: "Base URL" }
+                },
+                required: ["baseUrl"]
+              }
             },
-            includeHidden: {
-              type: "boolean",
-              description: "Include hidden directories in search (default: false)"
+            indexPath: {
+              type: "string",
+              description: "Path to save the multirepo index"
             }
           }
         }
       },
       {
         name: "scan_multirepo",
-        description: "Scan the configured repositories and generate mermaid graph",
+        description: "Scan the configured repositories and generate cross-repo analysis",
         inputSchema: {
           type: "object",
-          properties: {}
+          properties: {
+            forceRescan: {
+              type: "boolean",
+              description: "Force a fresh scan even if cache exists",
+              default: false
+            }
+          }
         }
       }
     ]
@@ -248,121 +305,37 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
   switch (name) {
-    case "configure_repos": {
+    case "configure_multirepo": {
       const config = args as any;
+      // Set environment variables based on the configuration
       if (config?.repos) {
         process.env.BLUETEXT_REPOS = JSON.stringify(config.repos);
+      }
+      if (config?.excludeGlobs) {
+        process.env.BLUETEXT_EXCLUDE_GLOBS = JSON.stringify(config.excludeGlobs);
+      }
+      if (config?.includeFileExtensions) {
+        process.env.BLUETEXT_INCLUDE_EXTENSIONS = JSON.stringify(config.includeFileExtensions);
+      }
+      if (config?.urlBases) {
+        process.env.BLUETEXT_URL_BASES = JSON.stringify(config.urlBases);
+      }
+      if (config?.indexPath) {
+        process.env.BLUETEXT_INDEX_PATH = config.indexPath;
       }
 
       return {
         content: [
           {
             type: "text",
-            text: `Repository configuration updated successfully!
-            
-**Configured ${config?.repos?.length || 0} repositories:**
-${config?.repos?.map((r: any) => `- ${r.name}: ${r.path || r.url}`).join('\n') || 'None'}
-
-You can now run scan_multirepo to analyze these repositories.`
+            text: `Multirepo configuration updated successfully. Configuration includes:
+- ${config?.repos?.length || 0} repositories
+- ${config?.excludeGlobs?.length || 0} exclude patterns
+- ${config?.includeFileExtensions?.length || 0} file extensions
+- ${config?.urlBases?.length || 0} URL base mappings`
           }
         ]
       };
-    }
-
-    case "auto_discover_repos": {
-      try {
-        const options = args as any;
-        const {
-          workspaceRoots = [process.cwd()],
-          maxDepth = 3,
-          minConfidence = 25,
-          includeHidden = false
-        } = options;
-
-        // Set up auto-discovery configuration
-        const autoConfig = {
-          enabled: true,
-          maxDepth,
-          minConfidence,
-          includeHidden,
-          workspaceRoots
-        };
-
-        // Update environment config to enable auto-discovery
-        const currentConfig = loadConfigFromEnv();
-        const updatedConfig = {
-          ...currentConfig,
-          autoDiscovery: autoConfig
-        };
-
-        // Store updated config in environment (could be improved with persistent storage)
-        process.env.BLUETEXT_AUTO_DISCOVERY = JSON.stringify(autoConfig);
-
-        // Import and run discovery
-        const { autoDiscoverProjects, getRepoName } = require('./multirepo/project-detection.js');
-        
-        let allProjects = [];
-        for (const root of workspaceRoots) {
-          const projects = autoDiscoverProjects(root, {
-            maxDepth,
-            minConfidence,
-            includeHidden,
-            excludePatterns: currentConfig.excludeGlobs || []
-          });
-          allProjects.push(...projects);
-        }
-
-        // Filter to only git repos
-        const gitProjects = allProjects.filter(project => {
-          const gitPath = join(project.path, '.git');
-          return existsSync(gitPath);
-        });
-
-        const discoveredRepos = gitProjects.map(project => ({
-          name: getRepoName(project),
-          path: project.path,
-          types: project.types,
-          confidence: project.confidence
-        }));
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Auto-discovery completed successfully!
-
-**Discovery Summary:**
-- Workspace roots searched: ${workspaceRoots.length}
-- Projects discovered: ${allProjects.length}
-- Git repositories found: ${gitProjects.length}
-- Search depth: ${maxDepth}
-- Minimum confidence: ${minConfidence}%
-
-**Discovered Repositories:**
-${discoveredRepos.map(repo => 
-  `- **${repo.name}** (${repo.confidence}% confidence)
-    - Path: \`${repo.path}\`
-    - Types: ${repo.types.join(', ')}`
-).join('\n\n')}
-
-${discoveredRepos.length > 0 ? 
-  'Use `scan_multirepo` to analyze these repositories and map their dependencies.' :
-  'No git repositories found. Try adjusting maxDepth or minConfidence parameters.'
-}`
-            }
-          ]
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error during auto-discovery: ${error instanceof Error ? error.message : String(error)}`
-            }
-          ],
-          isError: true
-        };
-      }
     }
 
     case "scan_multirepo": {
@@ -377,7 +350,7 @@ ${discoveredRepos.length > 0 ?
               text: `Multirepo scan completed successfully!
 
 **Scan Summary:**
-- Repos scanned: ${summary.reposScanned}
+- Repos scanned: ${summary.reposScanned} (discovered: ${summary.reposDiscovered})
 - Files scanned: ${summary.filesScanned}
 - Endpoints found: ${summary.endpointsFound}
 - Usages found: ${summary.usagesFound}
@@ -386,7 +359,9 @@ ${discoveredRepos.length > 0 ?
 **Mermaid Graph:**
 \`\`\`mermaid
 ${mermaid}
-\`\`\``
+\`\`\`
+
+The scan results have been saved to: ${cfg.indexPath}`
             }
           ]
         };
@@ -731,7 +706,7 @@ async function main() {
           <h1>Bluetext MCP Server</h1>
           <p>Configurable multirepo analysis server</p>
           <p>Status: Running</p>
-          <p>Use MCP tools to configure repositories and scan</p>
+          <p>Configuration: Environment-based</p>
         </body>
         </html>
       `);
@@ -743,9 +718,11 @@ async function main() {
   
   httpServer.listen(port, host, () => {
     console.log(`Bluetext MCP Server running on http://${host}:${port}`);
-    console.log("Use MCP tools to configure repositories and scan");
+    console.log("Configuration loaded from environment variables");
     const config = loadConfigFromEnv();
-    console.log(`Current repos: ${config.repos?.map(r => r.name).join(', ') || 'none'}`);
+    console.log(`- ${config.repos?.length || 0} repositories configured`);
+    console.log(`- ${config.excludeGlobs?.length || 0} exclude patterns`);
+    console.log(`- ${config.includeFileExtensions?.length || 0} file extensions`);
   });
   
   process.on("SIGINT", () => {

@@ -23,6 +23,12 @@ import {
   readHeadCommit,
 } from "./git.js";
 import { hashConfig } from "./config.js";
+import { 
+  detectRepositoryChanges, 
+  ChangeDetectionResult,
+  createIncrementalScanFilter 
+} from "./change-detection.js";
+import { loadIndex } from "./store.js";
 
 const HTTP_METHODS: HttpMethod[] = [
   "GET",
@@ -557,16 +563,56 @@ function discoverRepos(cfg: MultirepoConfig): { repoPath: string; name?: string;
     }
   }
 
-  if (set.size > 0) {
-    return Array.from(set.values());
-  }
+  // Enhanced auto-discovery
+  if (cfg.autoDiscovery?.enabled !== false) {
+    const autoConfig = cfg.autoDiscovery || {};
+    const { 
+      maxDepth = 3, 
+      minConfidence = 25,
+      includeHidden = false,
+      excludePatterns = [],
+      workspaceRoots = [process.cwd()]
+    } = autoConfig;
 
-  // Discover from roots
-  const roots = cfg.roots && cfg.roots.length > 0 ? cfg.roots : [process.cwd()];
-  const discovered = findGitRepos(roots.map((r) => resolve(r)), cfg.excludeGlobs);
-  for (const p of discovered) {
-    const abs = normalizePath(resolve(p));
-    if (!set.has(abs)) set.set(abs, { repoPath: abs });
+    // Import auto-discovery functions
+    const { autoDiscoverProjects, getRepoName } = require('./project-detection.js');
+
+    // Merge exclude patterns
+    const allExcludePatterns = [
+      ...(cfg.excludeGlobs || []),
+      ...excludePatterns
+    ];
+
+    // Search each workspace root
+    for (const root of workspaceRoots) {
+      try {
+        const projects = autoDiscoverProjects(root, {
+          maxDepth,
+          minConfidence,
+          excludePatterns: allExcludePatterns,
+          includeHidden
+        });
+
+        for (const project of projects) {
+          const projectPath = normalizePath(project.path);
+          
+          // Skip if already explicitly configured
+          if (set.has(projectPath)) continue;
+          
+          // Only include projects with git repos (check for .git directory)
+          const gitPath = join(project.path, '.git');
+          if (!existsSync(gitPath)) continue;
+          
+          const repoName = getRepoName(project);
+          set.set(projectPath, {
+            repoPath: projectPath,
+            name: repoName
+          });
+        }
+      } catch (error) {
+        console.warn(`Auto-discovery failed for root ${root}:`, error);
+      }
+    }
   }
 
   return Array.from(set.values());
@@ -732,20 +778,107 @@ function mapUsagesToEndpoints(params: {
 }
 
 export function scanMultirepo(cfg: MultirepoConfig): { index: MultirepoIndex; summary: ScanSummary } {
+  return scanMultirepoWithChanges(cfg);
+}
+
+export function scanMultirepoWithChanges(
+  cfg: MultirepoConfig, 
+  previousIndex?: MultirepoIndex
+): { index: MultirepoIndex; summary: ScanSummary; changes: ChangeDetectionResult } {
   const t0 = Date.now();
   const reposDiscoveredList = discoverRepos(cfg);
+
+  // Build current repositories info for change detection
+  const currentRepos: Record<string, RepoInfo> = {};
+  for (const repo of reposDiscoveredList) {
+    if (!existsSync(repo.repoPath)) continue;
+    const repoId = getRepoIdFromPath(repo.repoPath, repo.name);
+    const name = repo.name || basename(repo.repoPath);
+    const headCommit = readHeadCommit(repo.repoPath);
+    const files = walkFiles(repo.repoPath, {
+      excludeGlobs: cfg.excludeGlobs,
+      includeExtensions: cfg.includeFileExtensions,
+    });
+    const detectedLanguages = detectLanguagesByExtensions(files);
+    
+    currentRepos[repoId] = {
+      id: repoId,
+      name,
+      path: normalizePath(repo.repoPath),
+      url: repo.url,
+      branch: repo.branch,
+      headCommit,
+      detectedLanguages,
+    };
+  }
+
+  // Detect changes from previous scan
+  const changes = detectRepositoryChanges(currentRepos, previousIndex);
+  
+  // Create incremental scan filter
+  const shouldScanRepo = createIncrementalScanFilter(changes);
 
   const repos: Record<string, RepoInfo> = {};
   const endpoints: Record<string, Endpoint> = {};
   const usages: Record<string, Usage> = {};
 
+  // Copy unchanged data from previous index if incremental
+  if (previousIndex && !changes.hasChanges) {
+    // No changes - return previous index with updated timestamp
+    const now = new Date().toISOString();
+    const index: MultirepoIndex = {
+      ...previousIndex,
+      updatedAt: now,
+      lastScanAt: now,
+    };
+    
+    const summary: ScanSummary = {
+      reposDiscovered: reposDiscoveredList.length,
+      reposScanned: 0, // No repos actually scanned
+      filesScanned: 0,
+      endpointsFound: Object.keys(previousIndex.endpoints).length,
+      usagesFound: Object.keys(previousIndex.usages).length,
+      durationMs: Date.now() - t0,
+      changedRepos: [],
+    };
+
+    return { index, summary, changes };
+  }
+
+  // Copy unchanged repositories from previous index
+  if (previousIndex) {
+    for (const [repoId, repo] of Object.entries(currentRepos)) {
+      if (!shouldScanRepo(repoId)) {
+        repos[repoId] = repo;
+        // Copy existing endpoints and usages for unchanged repos
+        for (const [epId, endpoint] of Object.entries(previousIndex.endpoints)) {
+          if (endpoint.repoId === repoId) {
+            endpoints[epId] = endpoint;
+          }
+        }
+        for (const [usageId, usage] of Object.entries(previousIndex.usages)) {
+          if (usage.repoId === repoId) {
+            usages[usageId] = usage;
+          }
+        }
+      }
+    }
+  }
+
   let filesScanned = 0;
 
+  // Scan only changed repositories
   for (const repo of reposDiscoveredList) {
     const repoPath = repo.repoPath;
     if (!existsSync(repoPath)) continue;
 
     const repoId = getRepoIdFromPath(repoPath, repo.name);
+    
+    // Skip if this repo doesn't need scanning
+    if (previousIndex && !shouldScanRepo(repoId)) {
+      continue;
+    }
+
     const name = repo.name || basename(repoPath);
     const headCommit = readHeadCommit(repoPath);
     const files = walkFiles(repoPath, {
@@ -816,7 +949,7 @@ export function scanMultirepo(cfg: MultirepoConfig): { index: MultirepoIndex; su
   const now = new Date().toISOString();
   const index: MultirepoIndex = {
     version: 1,
-    createdAt: now,
+    createdAt: previousIndex?.createdAt || now,
     updatedAt: now,
     configHash: hashConfig(cfg),
     repos,
@@ -840,8 +973,8 @@ export function scanMultirepo(cfg: MultirepoConfig): { index: MultirepoIndex; su
     endpointsFound: endpointsArr.length,
     usagesFound: usagesArr.length,
     durationMs: Date.now() - t0,
-    changedRepos: Object.keys(repos), // placeholder; MVP no change detection
+    changedRepos: changes.changedRepos,
   };
 
-  return { index, summary };
+  return { index, summary, changes };
 }
