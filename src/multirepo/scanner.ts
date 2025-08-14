@@ -819,7 +819,26 @@ function mapUsagesToEndpoints(params: {
     }
 
     if (ep) {
-      const label = `${ep.method} ${ep.path}`;
+      // Generate a more descriptive label for the regular matching too
+      let purposePrefix = '';
+      const pathLower = ep.path.toLowerCase();
+      if (pathLower.includes('auth') || pathLower.includes('login') || pathLower.includes('signin')) {
+        purposePrefix = 'Authentication: ';
+      } else if (pathLower.includes('user') || pathLower.includes('profile')) {
+        purposePrefix = 'User Management: ';
+      } else if (pathLower.includes('payment') || pathLower.includes('billing')) {
+        purposePrefix = 'Payment: ';
+      } else if (pathLower.includes('order') || pathLower.includes('cart')) {
+        purposePrefix = 'Commerce: ';
+      } else if (pathLower.includes('notification') || pathLower.includes('email')) {
+        purposePrefix = 'Notification: ';
+      } else if (pathLower.includes('search') || pathLower.includes('query')) {
+        purposePrefix = 'Search: ';
+      } else if (pathLower.includes('upload') || pathLower.includes('file')) {
+        purposePrefix = 'File Management: ';
+      }
+      
+      const label = `${purposePrefix}${ep.method} ${ep.path}`;
       addEdge(u.repoId, ep.repoId, label, ep.id, u.id);
     }
   }
@@ -1042,10 +1061,33 @@ export async function scanMultirepoWithChanges(
             existingEdge.usageIds.push(usage.id);
           }
         } else {
+          // Generate a more descriptive label even without Groq analysis
+          const method = usage.method || 'CALL';
+          const path = usage.endpointPath;
+          
+          // Try to infer purpose from the path
+          let purposePrefix = '';
+          const pathLower = path.toLowerCase();
+          if (pathLower.includes('auth') || pathLower.includes('login') || pathLower.includes('signin')) {
+            purposePrefix = 'Authentication: ';
+          } else if (pathLower.includes('user') || pathLower.includes('profile')) {
+            purposePrefix = 'User Management: ';
+          } else if (pathLower.includes('payment') || pathLower.includes('billing')) {
+            purposePrefix = 'Payment: ';
+          } else if (pathLower.includes('order') || pathLower.includes('cart')) {
+            purposePrefix = 'Commerce: ';
+          } else if (pathLower.includes('notification') || pathLower.includes('email')) {
+            purposePrefix = 'Notification: ';
+          } else if (pathLower.includes('search') || pathLower.includes('query')) {
+            purposePrefix = 'Search: ';
+          } else if (pathLower.includes('upload') || pathLower.includes('file')) {
+            purposePrefix = 'File Management: ';
+          }
+          
           edges.push({
             fromRepoId: usage.repoId,
             toRepoId: targetRepo.id,
-            label: `${usage.method || 'CALL'} ${usage.endpointPath} (${usage.url})`,
+            label: `${purposePrefix}${method} ${path}`,
             count: 1,
             endpointIds: [], // We'd need to match specific endpoints
             usageIds: [usage.id]

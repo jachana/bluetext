@@ -16,6 +16,7 @@ export interface GroqAnalysisResult {
     message: string;
     confidence: number;
   }>;
+  mermaidGraph?: string; // AI-generated complete Mermaid graph
 }
 
 export class GroqAnalyzer {
@@ -49,6 +50,14 @@ export class GroqAnalyzer {
             3. Service dependencies and data flow
             4. Authentication and authorization patterns
             5. Integration patterns
+            6. Business domain relationships (e.g., user management, payment processing, etc.)
+            
+            For relationship names, use descriptive, business-focused terms like:
+            - "user_authentication" instead of just "auth"
+            - "payment_processing" instead of "payment"
+            - "data_retrieval" instead of "get"
+            - "order_management" instead of "order"
+            - "notification_delivery" instead of "notify"
             
             Respond with a JSON object containing "relationships" and "insights" arrays.`
           },
@@ -57,9 +66,9 @@ export class GroqAnalyzer {
             content: prompt
           }
         ],
-        model: "llama-3.1-70b-versatile",
+        model: "openai/gpt-oss-120b",
         temperature: 0.3,
-        max_tokens: 4000,
+        max_tokens: 8192, // Increased from 4000 for more comprehensive analysis
         response_format: { type: "json_object" }
       });
 
@@ -128,6 +137,23 @@ Instructions:
 4. Provide confidence scores (0-1) for each relationship
 5. Include reasoning for each identified relationship
 6. Suggest architectural insights and patterns you observe
+7. GENERATE A COMPLETE MERMAID GRAPH showing all services and their relationships with detailed edge labels
+
+For the Mermaid graph:
+- Use clear service names as nodes
+- Include specific endpoint paths in edge labels like "/users/:id/balance (GET)"
+- Show HTTP methods in parentheses
+- Group related endpoints when multiple exist between same services
+- Include service URLs if available
+- Make edge labels descriptive of the actual functionality
+
+Example Mermaid format:
+graph LR
+  U[user-service]
+  P[payment-service]
+  
+  P -->|"/users/:id/balance (GET), http://user-service:3001"| U
+  U -->|"/payments/process (POST)"| P
 
 Return JSON with this structure:
 {
@@ -137,19 +163,76 @@ Return JSON with this structure:
       "toRepoId": "repo2", 
       "fromEndpoint": "GET /api/users",
       "toEndpoint": "POST /auth/login",
-      "relationship": "authentication_flow",
+      "relationship": "user_authentication",
       "confidence": 0.8,
-      "reasoning": "repo1 makes auth calls to repo2's login endpoint"
+      "reasoning": "User service authenticates users via auth service login endpoint"
     }
   ],
   "insights": [
     {
       "type": "architecture",
-      "message": "Microservices architecture with authentication service",
+      "message": "Microservices architecture with dedicated authentication service",
       "confidence": 0.9
     }
-  ]
-}`;
+  ],
+  "mermaidGraph": "graph LR\n  U[user-service]\n  A[auth-service]\n  U -->|\"/auth/login (POST)\"| A"
+}
+
+Focus on making the Mermaid graph comprehensive and detailed, showing all discovered service relationships.`;
+  }
+
+  /**
+   * Generate AI-powered Mermaid graph directly from analysis
+   */
+  async generateAIMermaidGraph(index: MultirepoIndex): Promise<string> {
+    try {
+      const analysis = await this.analyzeRelationships(index);
+      
+      if (analysis.mermaidGraph) {
+        return analysis.mermaidGraph;
+      }
+      
+      // Fallback: generate basic graph if AI didn't provide one
+      return this.generateFallbackMermaid(index, analysis);
+    } catch (error) {
+      console.error('AI Mermaid generation failed:', error);
+      return this.generateFallbackMermaid(index);
+    }
+  }
+
+  /**
+   * Generate a fallback Mermaid graph when AI generation fails
+   */
+  private generateFallbackMermaid(index: MultirepoIndex, analysis?: GroqAnalysisResult): string {
+    const lines: string[] = [];
+    lines.push("graph LR");
+    
+    // Add nodes
+    for (const [repoId, repo] of Object.entries(index.repos)) {
+      const nodeId = repoId.replace(/[^a-zA-Z0-9_]/g, "_");
+      lines.push(`  ${nodeId}[${repo.name || repoId}]`);
+    }
+    
+    // Add edges from analysis or basic edges
+    if (analysis?.relationships) {
+      for (const rel of analysis.relationships) {
+        if (rel.confidence >= 0.5) {
+          const fromId = rel.fromRepoId.replace(/[^a-zA-Z0-9_]/g, "_");
+          const toId = rel.toRepoId.replace(/[^a-zA-Z0-9_]/g, "_");
+          const label = `${rel.fromEndpoint} → ${rel.toEndpoint}`;
+          lines.push(`  ${fromId} -->|"${label}"| ${toId}`);
+        }
+      }
+    } else {
+      // Use basic edges
+      for (const edge of index.edges) {
+        const fromId = edge.fromRepoId.replace(/[^a-zA-Z0-9_]/g, "_");
+        const toId = edge.toRepoId.replace(/[^a-zA-Z0-9_]/g, "_");
+        lines.push(`  ${fromId} -->|"${edge.label}"| ${toId}`);
+      }
+    }
+    
+    return lines.join("\n");
   }
 
   /**
@@ -161,10 +244,25 @@ Return JSON with this structure:
     for (const rel of analysis.relationships) {
       if (rel.confidence >= 0.5) { // Only include high-confidence relationships
         const edgeId = `groq-${rel.fromRepoId}-${rel.toRepoId}-${rel.relationship}`;
+        // Clean up endpoint paths to avoid markdown-like syntax
+        const cleanFromEndpoint = rel.fromEndpoint
+          .replace(/[[\]()]/g, '')  // Remove markdown link syntax
+          .replace(/\${[^}]+}/g, 'param')  // Replace template variables
+          .replace(/\/+/g, '/')  // Normalize slashes
+          .trim();
+        
+        const cleanToEndpoint = rel.toEndpoint
+          .replace(/[[\]()]/g, '')  // Remove markdown link syntax
+          .replace(/\${[^}]+}/g, 'param')  // Replace template variables
+          .replace(/\/+/g, '/')  // Normalize slashes
+          .trim();
+
+        const label = `${cleanFromEndpoint} → ${cleanToEndpoint}`;
+        
         edges.push({
           fromRepoId: rel.fromRepoId,
           toRepoId: rel.toRepoId,
-          label: `${rel.fromEndpoint} → ${rel.toEndpoint}`,
+          label: label,
           count: Math.round(rel.confidence * 10), // Convert confidence to count
           endpointIds: [], // We don't have specific endpoint IDs from Groq
           usageIds: [],

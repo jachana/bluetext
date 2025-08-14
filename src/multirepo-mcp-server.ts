@@ -13,7 +13,7 @@ import { homedir } from 'os';
 import crypto from 'crypto';
 import Groq from 'groq-sdk';
 import { scanMultirepo } from './multirepo/scanner.js';
-import { generateMermaid } from './multirepo/mermaid.js';
+import { generateMermaid, generateAIMermaid } from './multirepo/mermaid.js';
 import { MultirepoConfig, MultirepoIndex } from './types.js';
 
 class MultirepoMcpServer {
@@ -85,6 +85,34 @@ class MultirepoMcpServer {
     }
 
     try {
+      // Create a condensed version of scan data to reduce token usage
+      const condensedData = {
+        repos: Object.fromEntries(
+          Object.entries(scanData.repos).map(([id, repo]) => [
+            id, 
+            { id: repo.id, name: repo.name, languages: repo.detectedLanguages }
+          ])
+        ),
+        endpoints: Object.values(scanData.endpoints).map(e => ({
+          repoId: e.repoId,
+          method: e.method,
+          path: e.path,
+          framework: e.framework
+        })),
+        usages: Object.values(scanData.usages).map(u => ({
+          repoId: u.repoId,
+          method: u.method,
+          endpointPath: u.endpointPath,
+          url: u.url,
+          tool: u.tool
+        })),
+        existingEdges: scanData.edges.map(e => ({
+          from: e.fromRepoId,
+          to: e.toRepoId,
+          label: e.label
+        }))
+      };
+
       const prompt = `You are an expert software architect analyzing microservice dependencies.
 
 I have scan data from ${Object.keys(scanData.repos).length} repositories. Please analyze this data and generate a clean Mermaid dependency graph.
@@ -102,9 +130,9 @@ I have scan data from ${Object.keys(scanData.repos).length} repositories. Please
 - swish-demo: Frontend that calls the services
 - swish-orchestrator: Health checking and orchestration
 
-**Scan Data:**
+**Condensed Scan Data:**
 \`\`\`json
-${JSON.stringify(scanData, null, 2)}
+${JSON.stringify(condensedData, null, 2)}
 \`\`\`
 
 **Please provide ONLY a clean Mermaid graph showing the actual API call relationships between services:**
@@ -122,7 +150,7 @@ graph LR
             content: prompt
           }
         ],
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-120b",
         max_tokens: 4000,
         temperature: 0.1
       });
@@ -498,7 +526,7 @@ ${discoveredRepos.length > 0 ?
             writeFileSync(centralIndexPath, JSON.stringify(index, null, 2));
             
             // Generate mermaid diagrams (both original and LLM-enhanced)
-            const originalMermaid = generateMermaid(index);
+            const originalMermaid = await generateAIMermaid(index);
             const mermaid = llmMermaid || originalMermaid;
             
             // Save the LLM-enhanced mermaid graph to a separate file
@@ -795,7 +823,7 @@ ${llmMermaid ? '🤖 **LLM Analysis:** Enhanced dependency graph generated using
               mermaid = readFileSync(mermaidPath, 'utf-8');
               isLLMEnhanced = true;
             } else {
-              mermaid = generateMermaid(index);
+              mermaid = await generateAIMermaid(index);
             }
             
             const summary = `# Multirepo Scan Summary
@@ -861,7 +889,7 @@ ${mermaid}
             if (existsSync(mermaidPath)) {
               mermaid = readFileSync(mermaidPath, 'utf-8');
             } else {
-              mermaid = generateMermaid(index);
+              mermaid = await generateAIMermaid(index);
             }
             
             return {
