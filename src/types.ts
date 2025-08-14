@@ -90,6 +90,11 @@ export interface CrossRepoEdge {
   count: number; // number of usages
   endpointIds: string[];
   usageIds: string[];
+  groqAnalysis?: {
+    relationship: string;
+    confidence: number;
+    reasoning: string;
+  };
 }
 
 export interface MultirepoIndex {

@@ -1,5 +1,18 @@
 {
-  "repos": [],
+  "repos": [
+    {
+      "name": "bluetext",
+      "path": "C:/Users/jacob/IdeaProjects/bluetext"
+    },
+    {
+      "name": "admin-api",
+      "path": "C:/Users/jacob/IdeaProjects/admin-api"
+    },
+    {
+      "name": "Cabonline-API",
+      "path": "C:/Users/jacob/IdeaProjects/Cabonline-API"
+    }
+  ],
   "excludeGlobs": [
     "**/node_modules/**",
     "**/.git/**",
@@ -10,16 +23,81 @@
     "**/.vscode/**"
   ],
   "includeFileExtensions": [
-    ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs",
-    ".py", ".pyx", ".pyi",
-    ".go", ".mod",
-    ".java", ".kt", ".scala",
-    ".cs", ".fs", ".vb",
-    ".rb", ".php", ".swift",
-    ".rs", ".cpp", ".cc", ".cxx", ".c", ".h", ".hpp",
-    ".json", ".yaml", ".yml", ".toml", ".xml",
-    ".proto", ".graphql", ".sql"
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".cjs",
+    ".py",
+    ".pyx",
+    ".pyi",
+    ".go",
+    ".mod",
+    ".java",
+    ".kt",
+    ".scala",
+    ".cs",
+    ".fs",
+    ".vb",
+    ".rb",
+    ".php",
+    ".swift",
+    ".rs",
+    ".cpp",
+    ".cc",
+    ".cxx",
+    ".c",
+    ".h",
+    ".hpp",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".xml",
+    ".proto",
+    ".graphql",
+    ".sql"
   ],
-  "urlBases": [],
+  "urlBases": [
+    {
+      "baseUrl": "http://localhost:3001",
+      "repo": "demo-user-service"
+    },
+    {
+      "baseUrl": "http://localhost:3002",
+      "repo": "demo-payment-service"
+    },
+    {
+      "baseUrl": "http://localhost:3003",
+      "repo": "demo-transaction-service"
+    },
+    {
+      "baseUrl": "http://user-service:3001",
+      "repo": "demo-user-service"
+    },
+    {
+      "baseUrl": "http://payment-service:3002",
+      "repo": "demo-payment-service"
+    },
+    {
+      "baseUrl": "http://transaction-service:3003",
+      "repo": "demo-transaction-service"
+    }
+  ],
+  "autoDiscovery": {
+    "enabled": true,
+    "workspaceRoots": [
+      "."
+    ],
+    "maxDepth": 2,
+    "minConfidence": 25,
+    "excludePatterns": [
+      "**/node_modules/**",
+      "**/.git/**",
+      "**/dist/**",
+      "**/build/**"
+    ]
+  },
   "indexPath": "multirepo-index.json"
 }

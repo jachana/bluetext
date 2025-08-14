@@ -195,9 +195,9 @@ function getBlueprints(): string[] {
 /**
  * Run a multirepo scan and persist the index to the configured indexPath.
  */
-function scanAndPersist() {
+async function scanAndPersist() {
   const cfg = loadConfigFromEnv();
-  const { index, summary } = scanMultirepo(cfg);
+  const { index, summary } = await scanMultirepo(cfg);
   if (cfg.indexPath) {
     try {
       saveIndex(cfg.indexPath, index);
@@ -340,7 +340,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     case "scan_multirepo": {
       try {
-        const { cfg, index, summary } = scanAndPersist();
+        const { cfg, index, summary } = await scanAndPersist();
         const mermaid = generateMermaid(index);
         
         return {
@@ -534,7 +534,7 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
         ],
       };
     } else if (resourcePath === "multirepo/summary") {
-      const { index, summary } = scanAndPersist();
+      const { index, summary } = await scanAndPersist();
       const mermaid = generateMermaid(index);
       const md = [
         "# Multirepo Scan Summary",
@@ -571,7 +571,7 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
         ],
       };
     } else if (resourcePath === "multirepo/index.json") {
-      const { index } = scanAndPersist();
+      const { index } = await scanAndPersist();
       content = JSON.stringify(index, null, 2);
       return {
         contents: [
@@ -583,7 +583,7 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
         ],
       };
     } else if (resourcePath === "multirepo/graph.mmd") {
-      const { index } = scanAndPersist();
+      const { index } = await scanAndPersist();
       content = generateMermaid(index);
       return {
         contents: [
@@ -600,7 +600,7 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
       const repoId = parts[0];
       const kind = parts.slice(1).join("/");
 
-      const { index } = scanAndPersist();
+      const { index } = await scanAndPersist();
 
       if (kind === "endpoints.json") {
         const endpoints = Object.values(index.endpoints).filter((e) => e.repoId === repoId);

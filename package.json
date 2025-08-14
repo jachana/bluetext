@@ -13,10 +13,13 @@
   "scripts": {
     "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
     "watch": "tsc --watch",
+    "serve": "node build/index.js",
+    "dashboard": "node build/index.js",
     "inspector": "npx @modelcontextprotocol/inspector build/index.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "0.6.0"
+    "@modelcontextprotocol/sdk": "0.6.0",
+    "groq-sdk": "^0.30.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.24",

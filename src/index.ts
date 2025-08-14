@@ -18,12 +18,15 @@ import { readFileSync, readdirSync, existsSync } from "fs";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { createServer, IncomingMessage, ServerResponse } from "http";
+import { createRequire } from "module";
+import { mkdirSync } from "fs";
+import { homedir } from "os";
 
 // Multirepo imports
 import { scanMultirepo, scanMultirepoWithChanges } from "./multirepo/scanner.js";
 import { saveIndex, loadIndex } from "./multirepo/store.js";
 import { generateMermaid } from "./multirepo/mermaid.js";
-import { MultirepoConfig } from "./types.js";
+import { MultirepoConfig, MultirepoIndex } from "./types.js";
 import { 
   RepositoryWatcher, 
   CHANGE_DETECTION_PRESETS 
@@ -33,6 +36,9 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const PROJECT_ROOT = resolve(__dirname, "..");
+
+// Enable CommonJS-style require in ESM context where needed
+const require = createRequire(import.meta.url);
 
 /**
  * Load configuration from environment variables or use defaults
@@ -137,10 +143,23 @@ function getBlueprints(): string[] {
 /**
  * Run a multirepo scan and persist the index to the configured indexPath.
  */
-function scanAndPersist() {
+async function scanAndPersist(workspaceName?: string) {
   const cfg = loadConfigFromEnv();
-  const { index, summary } = scanMultirepo(cfg);
-  if (cfg.indexPath) {
+  const { index, summary } = await scanMultirepo(cfg);
+  
+  // If workspace name is provided, save to workspace-specific location
+  if (workspaceName) {
+    const workspaceIndexesPath = join(PROJECT_ROOT, "workspace-indexes");
+    if (!existsSync(workspaceIndexesPath)) {
+      mkdirSync(workspaceIndexesPath, { recursive: true });
+    }
+    const indexPath = join(workspaceIndexesPath, `${workspaceName}-index.json`);
+    try {
+      saveIndex(indexPath, index);
+    } catch (error) {
+      console.error(`Failed to save workspace index for ${workspaceName}:`, error);
+    }
+  } else if (cfg.indexPath) {
     try {
       saveIndex(cfg.indexPath, index);
     } catch {
@@ -148,6 +167,73 @@ function scanAndPersist() {
     }
   }
   return { cfg, index, summary };
+}
+
+/**
+ * Load all workspace indexes from both local and centralized directories
+ */
+function loadAllWorkspaceIndexes(): Record<string, MultirepoIndex> {
+  const workspaces: Record<string, MultirepoIndex> = {};
+  
+  // Load from local workspace-indexes directory
+  const localWorkspaceIndexesPath = join(PROJECT_ROOT, "workspace-indexes");
+  if (existsSync(localWorkspaceIndexesPath)) {
+    try {
+      const files = readdirSync(localWorkspaceIndexesPath);
+      for (const file of files) {
+        if (file.endsWith("-index.json")) {
+          const workspaceName = file.replace("-index.json", "");
+          const indexPath = join(localWorkspaceIndexesPath, file);
+          const index = loadIndex(indexPath);
+          if (index) {
+            workspaces[workspaceName] = index;
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error loading local workspace indexes:", error);
+    }
+  }
+  
+  // Load from centralized workspace directory
+  const centralWorkspaceDir = process.env.BLUETEXT_WORKSPACE_DIR || 
+    join(homedir(), '.bluetext', 'workspaces');
+  if (existsSync(centralWorkspaceDir)) {
+    try {
+      const files = readdirSync(centralWorkspaceDir);
+      for (const file of files) {
+        if (file.endsWith("-index.json")) {
+          const workspaceName = file.replace("-index.json", "");
+          const indexPath = join(centralWorkspaceDir, file);
+          const index = loadIndex(indexPath);
+          if (index) {
+            // Don't overwrite if we already have this workspace from local
+            if (!workspaces[workspaceName]) {
+              workspaces[workspaceName] = index;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error loading centralized workspace indexes:", error);
+    }
+  }
+  
+  // Also check for any legacy index in the root and migrate it
+  const defaultIndex = loadIndex("multirepo-index.json");
+  if (defaultIndex) {
+    // Extract workspace name from the repos if possible
+    const repoNames = Object.values(defaultIndex.repos).map(r => r.name);
+    const workspaceName = repoNames.length > 0 ? 
+      repoNames[0].split('-')[0] || 'workspace' : 'workspace';
+    const timestamp = new Date().getTime();
+    const legacyWorkspaceName = `${workspaceName}-${timestamp}`;
+    if (!workspaces[legacyWorkspaceName]) {
+      workspaces[legacyWorkspaceName] = defaultIndex;
+    }
+  }
+  
+  return workspaces;
 }
 
 /**
@@ -367,7 +453,27 @@ ${discoveredRepos.length > 0 ?
 
     case "scan_multirepo": {
       try {
-        const { cfg, index, summary } = scanAndPersist();
+        // Generate workspace name from repos being scanned
+        const cfg = loadConfigFromEnv();
+        const workspaceName = cfg.repos && cfg.repos.length > 0 ? 
+          `scan-${cfg.repos[0].name || 'workspace'}-${Date.now()}` : 
+          `scan-${Date.now()}`;
+        
+        const { index, summary } = await scanMultirepo(cfg);
+        
+        // Save to both local location and centralized location
+        const localIndexPath = cfg.indexPath || "multirepo-index.json";
+        saveIndex(localIndexPath, index);
+        
+        // Also save to centralized workspace indexes for the dashboard
+        const centralWorkspaceDir = process.env.BLUETEXT_WORKSPACE_DIR || 
+          join(homedir(), '.bluetext', 'workspaces');
+        if (!existsSync(centralWorkspaceDir)) {
+          mkdirSync(centralWorkspaceDir, { recursive: true });
+        }
+        const centralIndexPath = join(centralWorkspaceDir, `${workspaceName}-index.json`);
+        saveIndex(centralIndexPath, index);
+        
         const mermaid = generateMermaid(index);
         
         return {
@@ -559,7 +665,7 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
         ],
       };
     } else if (resourcePath === "multirepo/summary") {
-      const { index, summary } = scanAndPersist();
+      const { index, summary } = await scanAndPersist();
       const mermaid = generateMermaid(index);
       const md = [
         "# Multirepo Scan Summary",
@@ -596,7 +702,7 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
         ],
       };
     } else if (resourcePath === "multirepo/index.json") {
-      const { index } = scanAndPersist();
+      const { index } = await scanAndPersist();
       content = JSON.stringify(index, null, 2);
       return {
         contents: [
@@ -608,7 +714,7 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
         ],
       };
     } else if (resourcePath === "multirepo/graph.mmd") {
-      const { index } = scanAndPersist();
+      const { index } = await scanAndPersist();
       content = generateMermaid(index);
       return {
         contents: [
@@ -625,7 +731,7 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
       const repoId = parts[0];
       const kind = parts.slice(1).join("/");
 
-      const { index } = scanAndPersist();
+      const { index } = await scanAndPersist();
 
       if (kind === "endpoints.json") {
         const endpoints = Object.values(index.endpoints).filter((e) => e.repoId === repoId);
@@ -682,8 +788,8 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
  * Start the server using SSE transport for remote deployment.
  */
 async function main() {
-  const port = parseInt(process.env.PORT || "3000", 10);
-  const host = process.env.HOST || "0.0.0.0";
+  const port = parseInt(process.env.PORT || "3001", 10);
+  const host = process.env.HOST || "localhost";
   
   const transports: { [sessionId: string]: SSEServerTransport } = {};
 
@@ -710,6 +816,426 @@ async function main() {
         res.writeHead(400, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "No transport found for sessionId" }));
       }
+    } else if (req.method === "GET" && req.url === "/dashboard") {
+      try {
+        // Load all workspace indexes
+        const workspaces = loadAllWorkspaceIndexes();
+        
+        // Calculate overall statistics across all workspaces
+        let totalRepos = 0;
+        let totalFiles = 0;
+        let totalEndpoints = 0;
+        let totalUsages = 0;
+        let totalEdges = 0;
+        
+        for (const [name, index] of Object.entries(workspaces)) {
+          totalRepos += Object.keys(index.repos).length;
+          totalFiles += index.scanStats?.filesScanned || 0;
+          totalEndpoints += Object.keys(index.endpoints).length;
+          totalUsages += Object.keys(index.usages).length;
+          totalEdges += index.edges.length;
+        }
+        
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(`
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Bluetext Multirepo Dashboard</title>
+            <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+              .container { max-width: 1400px; margin: 0 auto; }
+              .header { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+              .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+              .stat-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; }
+              .stat-number { font-size: 2em; font-weight: bold; color: #007acc; }
+              .stat-label { color: #666; font-size: 0.9em; }
+              .workspaces-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; margin-bottom: 20px; }
+              .workspace-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; text-decoration: none; color: inherit; display: block; }
+              .workspace-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
+              .workspace-icon { font-size: 3em; text-align: center; margin-bottom: 10px; }
+              .workspace-name { font-size: 1.2em; font-weight: bold; color: #333; margin-bottom: 10px; text-align: center; }
+              .workspace-stats { display: flex; justify-content: space-around; margin-top: 15px; border-top: 1px solid #eee; padding-top: 15px; }
+              .workspace-stat { text-align: center; }
+              .workspace-stat-value { font-weight: bold; color: #007acc; font-size: 1.1em; }
+              .workspace-stat-label { color: #666; font-size: 0.8em; }
+              .scan-btn { background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin-left: 10px; }
+              .scan-btn:hover { background: #218838; }
+              h1, h2 { color: #333; }
+              .no-workspaces { text-align: center; color: #666; font-style: italic; padding: 40px; background: white; border-radius: 8px; }
+              .actions { display: flex; gap: 10px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>🔍 Bluetext Multirepo Dashboard</h1>
+                <p>Cross-repository relationship analysis and visualization</p>
+                <div class="actions">
+                  <button class="scan-btn" onclick="scanWorkspace()">📊 Scan Current Workspace</button>
+                  <button class="scan-btn" onclick="window.location.reload()">🔄 Refresh Dashboard</button>
+                </div>
+              </div>
+
+              ${Object.keys(workspaces).length > 0 ? `
+              <div class="stats">
+                <div class="stat-card">
+                  <div class="stat-number">${Object.keys(workspaces).length}</div>
+                  <div class="stat-label">Workspaces</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-number">${totalRepos}</div>
+                  <div class="stat-label">Total Repositories</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-number">${totalFiles}</div>
+                  <div class="stat-label">Total Files Scanned</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-number">${totalEndpoints}</div>
+                  <div class="stat-label">Total API Endpoints</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-number">${totalUsages}</div>
+                  <div class="stat-label">Total API Usages</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-number">${totalEdges}</div>
+                  <div class="stat-label">Total Cross-Repo Relations</div>
+                </div>
+              </div>
+
+              <h2>📁 Scanned Workspaces</h2>
+              <div class="workspaces-grid">
+                ${Object.entries(workspaces).map(([name, index]) => {
+                  const repoCount = Object.keys(index.repos).length;
+                  const endpointCount = Object.keys(index.endpoints).length;
+                  const edgeCount = index.edges.length;
+                  const scanTime = index.updatedAt || index.createdAt;
+                  
+                  // Format workspace name for display
+                  const displayName = name.replace(/^scan-/, '').replace(/-\d+$/, '');
+                  
+                  return `
+                    <a href="/workspace/${encodeURIComponent(name)}" class="workspace-card">
+                      <div class="workspace-icon">📂</div>
+                      <div class="workspace-name">${displayName}</div>
+                      <div style="text-align: center; color: #666; font-size: 0.9em; margin-bottom: 10px;">
+                        Last scan: ${new Date(scanTime).toLocaleString()}
+                      </div>
+                      <div class="workspace-stats">
+                        <div class="workspace-stat">
+                          <div class="workspace-stat-value">${repoCount}</div>
+                          <div class="workspace-stat-label">Repos</div>
+                        </div>
+                        <div class="workspace-stat">
+                          <div class="workspace-stat-value">${endpointCount}</div>
+                          <div class="workspace-stat-label">Endpoints</div>
+                        </div>
+                        <div class="workspace-stat">
+                          <div class="workspace-stat-value">${edgeCount}</div>
+                          <div class="workspace-stat-label">Relations</div>
+                        </div>
+                      </div>
+                    </a>
+                  `;
+                }).join('')}
+              </div>
+              ` : `
+              <div class="no-workspaces">
+                <h2>No Workspaces Scanned Yet</h2>
+                <p>To analyze repositories, you need to use the MCP tools first:</p>
+                <ol style="text-align: left; max-width: 600px; margin: 0 auto;">
+                  <li><strong>Auto-discover repositories:</strong> Use <code>auto_discover_repos</code> tool</li>
+                  <li><strong>Configure repositories:</strong> Use <code>configure_repos</code> tool</li>
+                  <li><strong>Scan repositories:</strong> Use <code>scan_multirepo</code> tool</li>
+                </ol>
+                <p style="margin-top: 20px;">After scanning with MCP tools, workspaces will appear here as clickable folders.</p>
+              </div>
+              `}
+            </div>
+
+            <script>
+              mermaid.initialize({ startOnLoad: true, theme: 'default' });
+              
+              async function scanWorkspace() {
+                const name = prompt("Enter a name for this workspace scan:", "workspace-" + Date.now());
+                if (name) {
+                  const fullName = name.startsWith('scan-') ? name : 'scan-' + name;
+                  const uniqueName = fullName + '-' + Date.now();
+                  alert("Scanning workspace '" + name + "'... This may take a moment.");
+                  window.location.href = '/scan/' + encodeURIComponent(uniqueName);
+                }
+              }
+            </script>
+          </body>
+          </html>
+        `);
+      } catch (error) {
+        res.writeHead(500, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(`
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Bluetext Error</title>
+          </head>
+          <body>
+            <h1>Error</h1>
+            <p>Failed to generate dashboard: ${error instanceof Error ? error.message : String(error)}</p>
+            <p><a href="/">Retry</a></p>
+          </body>
+          </html>
+        `);
+      }
+    } else if (req.method === "GET" && req.url?.startsWith("/workspace/")) {
+      // Individual workspace view
+      try {
+        const workspaceName = decodeURIComponent(req.url.substring("/workspace/".length));
+        const workspaces = loadAllWorkspaceIndexes();
+        const index = workspaces[workspaceName];
+        
+        if (!index) {
+          res.writeHead(404, { "Content-Type": "text/html; charset=utf-8" });
+          res.end(`
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Workspace Not Found</title>
+            </head>
+            <body>
+              <h1>Workspace Not Found</h1>
+              <p>The workspace '${workspaceName}' was not found.</p>
+              <p><a href="/dashboard">Back to Dashboard</a></p>
+            </body>
+            </html>
+          `);
+          return;
+        }
+        
+        const mermaid = generateMermaid(index);
+        const summary = index.scanStats || { filesScanned: 0, durationMs: 0 };
+        
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(`
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>${workspaceName} - Bluetext Workspace</title>
+            <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+              .container { max-width: 1200px; margin: 0 auto; }
+              .header { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+              .breadcrumb { color: #666; margin-bottom: 10px; }
+              .breadcrumb a { color: #007acc; text-decoration: none; }
+              .breadcrumb a:hover { text-decoration: underline; }
+              .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+              .stat-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; }
+              .stat-number { font-size: 2em; font-weight: bold; color: #007acc; }
+              .stat-label { color: #666; font-size: 0.9em; }
+              .graph-container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+              .repos-list { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+              .repo-item { padding: 10px; border-left: 4px solid #007acc; margin: 10px 0; background: #f8f9fa; }
+              .repo-name { font-weight: bold; color: #333; }
+              .repo-details { color: #666; font-size: 0.9em; margin-top: 5px; }
+              .edges-list { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+              .edge-item { padding: 8px; border-bottom: 1px solid #eee; }
+              .mermaid { text-align: center; }
+              h1, h2 { color: #333; }
+              .no-data { text-align: center; color: #666; font-style: italic; }
+              .back-btn { background: #007acc; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block; }
+              .back-btn:hover { background: #005a9e; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <div class="breadcrumb">
+                  <a href="/dashboard">Dashboard</a> / ${workspaceName.replace(/^scan-/, '').replace(/-\d+$/, '')}
+                </div>
+                <h1>📂 ${workspaceName.replace(/^scan-/, '').replace(/-\d+$/, '')}</h1>
+                <p>Repository relationship analysis for this workspace</p>
+                <p style="color: #666; font-size: 0.9em;">
+                  Last scanned: ${new Date(index.updatedAt || index.createdAt).toLocaleString()}
+                </p>
+              </div>
+
+              <div class="stats">
+                <div class="stat-card">
+                  <div class="stat-number">${Object.keys(index.repos).length}</div>
+                  <div class="stat-label">Repositories</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-number">${summary.filesScanned || 0}</div>
+                  <div class="stat-label">Files Scanned</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-number">${Object.keys(index.endpoints).length}</div>
+                  <div class="stat-label">API Endpoints</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-number">${Object.keys(index.usages).length}</div>
+                  <div class="stat-label">API Usages</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-number">${index.edges.length}</div>
+                  <div class="stat-label">Cross-Repo Relations</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-number">${summary.durationMs || 0}ms</div>
+                  <div class="stat-label">Scan Duration</div>
+                </div>
+              </div>
+
+              <div class="graph-container">
+                <h2>📊 Repository Relationship Graph</h2>
+                ${index.edges.length > 0 ? 
+                  `<div class="mermaid">${mermaid}</div>` :
+                  '<div class="no-data">No cross-repository relationships found. This could mean:<br/>• Repositories are independent<br/>• API calls use external services<br/>• Different communication patterns are used</div>'
+                }
+              </div>
+
+              ${index.edges.length > 0 ? `
+              <div class="edges-list">
+                <h2>🔗 Cross-Repository Relationships</h2>
+                ${index.edges.sort((a, b) => b.count - a.count).slice(0, 10).map(edge => `
+                  <div class="edge-item">
+                    <strong>${index.repos[edge.fromRepoId]?.name || edge.fromRepoId}</strong> 
+                    → <strong>${index.repos[edge.toRepoId]?.name || edge.toRepoId}</strong>
+                    <br/>
+                    <span style="color: #666;">
+                      ${edge.label} (${edge.count} call${edge.count !== 1 ? 's' : ''})
+                    </span>
+                  </div>
+                `).join('')}
+                ${index.edges.length > 10 ? `<div class="no-data">... and ${index.edges.length - 10} more relationships</div>` : ''}
+              </div>
+              ` : ''}
+
+              <div class="repos-list">
+                <h2>📁 Repository Details</h2>
+                ${Object.values(index.repos).map(repo => {
+                  const endpoints = Object.values(index.endpoints).filter(e => e.repoId === repo.id);
+                  const usages = Object.values(index.usages).filter(u => u.repoId === repo.id);
+                  return `
+                    <div class="repo-item">
+                      <div class="repo-name">${repo.name}</div>
+                      <div class="repo-details">
+                        📂 ${repo.path}<br/>
+                        💻 Languages: ${repo.detectedLanguages?.join(', ') || 'Unknown'}<br/>
+                        🔌 ${endpoints.length} endpoint${endpoints.length !== 1 ? 's' : ''}, 
+                        📞 ${usages.length} usage${usages.length !== 1 ? 's' : ''}
+                        ${repo.headCommit ? `<br/>📝 Latest commit: ${repo.headCommit.slice(0, 8)}` : ''}
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+
+              <div style="margin-top: 20px;">
+                <a href="/dashboard" class="back-btn">← Back to Dashboard</a>
+              </div>
+            </div>
+
+            <script>
+              mermaid.initialize({ startOnLoad: true, theme: 'default' });
+            </script>
+          </body>
+          </html>
+        `);
+      } catch (error) {
+        res.writeHead(500, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(`
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Bluetext Error</title>
+          </head>
+          <body>
+            <h1>Error</h1>
+            <p>Failed to load workspace: ${error instanceof Error ? error.message : String(error)}</p>
+            <p><a href="/dashboard">Back to Dashboard</a></p>
+          </body>
+          </html>
+        `);
+      }
+    } else if (req.method === "GET" && req.url?.startsWith("/scan/")) {
+      // Scan a workspace and redirect to its view
+      try {
+        const fullWorkspaceName = decodeURIComponent(req.url.substring("/scan/".length));
+        console.log(`Scanning workspace: ${fullWorkspaceName}`);
+        
+        // Load current config and scan
+        const cfg = loadConfigFromEnv();
+        
+        // Check if there are any repos configured
+        if (!cfg.repos || cfg.repos.length === 0) {
+          res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
+          res.end(`
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>No Repositories Configured</title>
+            </head>
+            <body>
+              <h1>No Repositories Configured</h1>
+              <p>No repositories are configured for scanning. Please use the MCP tools to configure repositories first:</p>
+              <ol>
+                <li>Use <code>auto_discover_repos</code> to find repositories</li>
+                <li>Use <code>configure_repos</code> to set up the repositories</li>
+                <li>Use <code>scan_multirepo</code> to perform the analysis</li>
+              </ol>
+              <p><a href="/dashboard">Back to Dashboard</a></p>
+            </body>
+            </html>
+          `);
+          return;
+        }
+        
+        const { index, summary } = await scanMultirepo(cfg);
+        
+        // Save to workspace-specific location
+        const workspaceIndexesPath = join(PROJECT_ROOT, "workspace-indexes");
+        if (!existsSync(workspaceIndexesPath)) {
+          mkdirSync(workspaceIndexesPath, { recursive: true });
+        }
+        const indexPath = join(workspaceIndexesPath, `${fullWorkspaceName}-index.json`);
+        saveIndex(indexPath, index);
+        console.log(`Saved workspace index to: ${indexPath}`);
+        
+        res.writeHead(302, { "Location": `/workspace/${encodeURIComponent(fullWorkspaceName)}` });
+        res.end();
+      } catch (error) {
+        res.writeHead(500, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(`
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Scan Error</title>
+          </head>
+          <body>
+            <h1>Scan Error</h1>
+            <p>Failed to scan workspace: ${error instanceof Error ? error.message : String(error)}</p>
+            <p><a href="/dashboard">Back to Dashboard</a></p>
+          </body>
+          </html>
+        `);
+      }
     } else if (req.method === "GET" && req.url === "/health") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ 
@@ -720,21 +1246,8 @@ async function main() {
         config: loadConfigFromEnv()
       }));
     } else if (req.method === "GET" && req.url === "/") {
-      res.writeHead(200, { "Content-Type": "text/html" });
-      res.end(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Bluetext MCP Server</title>
-        </head>
-        <body>
-          <h1>Bluetext MCP Server</h1>
-          <p>Configurable multirepo analysis server</p>
-          <p>Status: Running</p>
-          <p>Use MCP tools to configure repositories and scan</p>
-        </body>
-        </html>
-      `);
+      res.writeHead(302, { "Location": "/dashboard" });
+      res.end();
     } else {
       res.writeHead(404, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Not found" }));

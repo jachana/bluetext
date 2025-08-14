@@ -29,6 +29,7 @@ import {
   createIncrementalScanFilter 
 } from "./change-detection.js";
 import { loadIndex } from "./store.js";
+import { GroqAnalyzer } from "./groq-analyzer.js";
 
 const HTTP_METHODS: HttpMethod[] = [
   "GET",
@@ -60,9 +61,9 @@ function canonicalizePath(p: string): string {
   const parts = ensureLeadingSlash(p).split("/");
   const norm = parts.map((seg) => {
     if (!seg) return "";
-    if (/^\{[^}]+\}$/.test(seg)) return ":";
-    if (/^:/.test(seg)) return ":";
-    if (/^\$\{[^}]+\}$/.test(seg)) return ":";
+    if (/^\{[^}]+\}$/.test(seg)) return ":param";
+    if (/^:/.test(seg)) return ":param";
+    if (/^\$\{[^}]+\}$/.test(seg)) return ":param";
     return seg;
   });
   return norm.join("/");
@@ -551,7 +552,7 @@ function splitUrl(s: string): { endpointPath: string; absoluteUrl: string | null
   }
 }
 
-function discoverRepos(cfg: MultirepoConfig): { repoPath: string; name?: string; branch?: string; url?: string }[] {
+async function discoverRepos(cfg: MultirepoConfig): Promise<{ repoPath: string; name?: string; branch?: string; url?: string }[]> {
   const set = new Map<string, { repoPath: string; name?: string; branch?: string; url?: string }>();
 
   // Explicit repos (local paths only for MVP)
@@ -574,8 +575,8 @@ function discoverRepos(cfg: MultirepoConfig): { repoPath: string; name?: string;
       workspaceRoots = [process.cwd()]
     } = autoConfig;
 
-    // Import auto-discovery functions
-    const { autoDiscoverProjects, getRepoName } = require('./project-detection.js');
+    // Import auto-discovery functions (dynamic import for ESM compatibility)
+    const { autoDiscoverProjects, getRepoName } = await import('./project-detection.js');
 
     // Merge exclude patterns
     const allExcludePatterns = [
@@ -675,6 +676,51 @@ function mapUsagesToEndpoints(params: {
 
     // Build candidate list based on absolute URL or endpointPath prefix
     const candidates: { base: any; pathAfterBase: string }[] = [];
+    
+    // Enhanced environment variable pattern matching (MOVED OUTSIDE URL BASE LOOP)
+    if (u.endpointPath) {
+      // Define comprehensive environment variable to service mappings
+      const envVarMappings = [
+        { 
+          patterns: [/^\$\{PAYMENT_SERVICE_URL\}/, /^\/\$\{PAYMENT_SERVICE_URL\}/, /^\${PAYMENT_SERVICE_URL}/, /^\/${PAYMENT_SERVICE_URL}/],
+          serviceUrls: ["http://payment-service:3002", "http://localhost:3002"], 
+          repo: "demo-payment-service" 
+        },
+        { 
+          patterns: [/^\$\{TRANSACTION_SERVICE_URL\}/, /^\/\$\{TRANSACTION_SERVICE_URL\}/, /^\${TRANSACTION_SERVICE_URL}/, /^\/${TRANSACTION_SERVICE_URL}/],
+          serviceUrls: ["http://transaction-service:3003", "http://localhost:3003"], 
+          repo: "demo-transaction-service" 
+        },
+        { 
+          patterns: [/^\$\{USER_SERVICE_URL\}/, /^\/\$\{USER_SERVICE_URL\}/, /^\${USER_SERVICE_URL}/, /^\/${USER_SERVICE_URL}/],
+          serviceUrls: ["http://user-service:3001", "http://localhost:3001"], 
+          repo: "demo-user-service" 
+        }
+      ];
+
+      // Check each environment variable mapping
+      for (const mapping of envVarMappings) {
+        for (const pattern of mapping.patterns) {
+          if (pattern.test(u.endpointPath)) {
+            console.log(`   🎯 ENV VAR MATCH: ${u.endpointPath} matches ${pattern} -> ${mapping.repo}`);
+            // Find matching URL base for this service
+            for (const base of cfg.urlBases) {
+              if (mapping.serviceUrls.includes(base.baseUrl) || base.repo === mapping.repo) {
+                const after = ensureLeadingSlash(u.endpointPath.replace(pattern, ""));
+                console.log(`   ✅ URL BASE MATCH: ${base.baseUrl} -> ${mapping.repo}, path after: ${after}`);
+                candidates.push({ 
+                  base: { ...base, repo: mapping.repo }, 
+                  pathAfterBase: after 
+                });
+              }
+            }
+            break; // Found a pattern match, don't check other patterns for this mapping
+          }
+        }
+      }
+    }
+
+    // Standard URL matching (for non-environment variable patterns)
     for (const base of cfg.urlBases) {
       // Direct URL matching
       if (u.url && u.url.startsWith(base.baseUrl)) {
@@ -686,23 +732,27 @@ function mapUsagesToEndpoints(params: {
         const after = ensureLeadingSlash(u.endpointPath.slice(base.baseUrl.length).split("?")[0] || "/");
         candidates.push({ base, pathAfterBase: after });
       }
-      // Environment variable pattern matching
+      // URL-decoded endpoint path matching (handle %7B%7D -> {})
       else if (u.endpointPath) {
-        // Handle patterns like /${PAYMENT_SERVICE_URL}/users/created
-        const envVarPatterns = [
-          { pattern: /^\$\{PAYMENT_SERVICE_URL\}/, serviceUrl: "http://payment-service:3002", repo: "demo-payment-service" },
-          { pattern: /^\$\{TRANSACTION_SERVICE_URL\}/, serviceUrl: "http://transaction-service:3003", repo: "demo-transaction-service" },
-          { pattern: /^\$\{USER_SERVICE_URL\}/, serviceUrl: "http://user-service:3001", repo: "demo-user-service" },
-          { pattern: /^\/\$\{PAYMENT_SERVICE_URL\}/, serviceUrl: "http://payment-service:3002", repo: "demo-payment-service" },
-          { pattern: /^\/\$\{TRANSACTION_SERVICE_URL\}/, serviceUrl: "http://transaction-service:3003", repo: "demo-transaction-service" },
-          { pattern: /^\/\$\{USER_SERVICE_URL\}/, serviceUrl: "http://user-service:3001", repo: "demo-user-service" }
+        const decodedPath = decodeURIComponent(u.endpointPath);
+        if (decodedPath.startsWith(base.baseUrl)) {
+          const after = ensureLeadingSlash(decodedPath.slice(base.baseUrl.length).split("?")[0] || "/");
+          candidates.push({ base, pathAfterBase: after });
+        }
+      }
+      // Direct localhost patterns
+      else if (u.endpointPath) {
+        const localhostPatterns = [
+          { pattern: /^localhost:3001/, serviceUrl: "http://localhost:3001", repo: "demo-user-service" },
+          { pattern: /^localhost:3002/, serviceUrl: "http://localhost:3002", repo: "demo-payment-service" },
+          { pattern: /^localhost:3003/, serviceUrl: "http://localhost:3003", repo: "demo-transaction-service" }
         ];
         
-        for (const envPattern of envVarPatterns) {
-          if (envPattern.pattern.test(u.endpointPath) && base.baseUrl === envPattern.serviceUrl) {
-            const after = ensureLeadingSlash(u.endpointPath.replace(envPattern.pattern, ""));
+        for (const localhostPattern of localhostPatterns) {
+          if (localhostPattern.pattern.test(u.endpointPath) && base.baseUrl === localhostPattern.serviceUrl) {
+            const after = ensureLeadingSlash(u.endpointPath.replace(localhostPattern.pattern, ""));
             candidates.push({ 
-              base: { ...base, repo: envPattern.repo }, 
+              base: { ...base, repo: localhostPattern.repo }, 
               pathAfterBase: after 
             });
             break;
@@ -777,16 +827,17 @@ function mapUsagesToEndpoints(params: {
   return Array.from(edgesMap.values());
 }
 
-export function scanMultirepo(cfg: MultirepoConfig): { index: MultirepoIndex; summary: ScanSummary } {
-  return scanMultirepoWithChanges(cfg);
+export async function scanMultirepo(cfg: MultirepoConfig): Promise<{ index: MultirepoIndex; summary: ScanSummary }> {
+  const result = await scanMultirepoWithChanges(cfg);
+  return { index: result.index, summary: result.summary };
 }
 
-export function scanMultirepoWithChanges(
+export async function scanMultirepoWithChanges(
   cfg: MultirepoConfig, 
   previousIndex?: MultirepoIndex
-): { index: MultirepoIndex; summary: ScanSummary; changes: ChangeDetectionResult } {
+): Promise<{ index: MultirepoIndex; summary: ScanSummary; changes: ChangeDetectionResult }> {
   const t0 = Date.now();
-  const reposDiscoveredList = discoverRepos(cfg);
+  const reposDiscoveredList = await discoverRepos(cfg);
 
   // Build current repositories info for change detection
   const currentRepos: Record<string, RepoInfo> = {};
@@ -939,12 +990,136 @@ export function scanMultirepoWithChanges(
 
   const endpointsArr = Object.values(endpoints);
   const usagesArr = Object.values(usages);
-  const edges = mapUsagesToEndpoints({
-    endpoints: endpointsArr,
-    usages: usagesArr,
-    cfg,
-    reposById: repos,
-  });
+  
+  // Basic pattern-based edge detection
+  let edges: CrossRepoEdge[] = [];
+  
+  console.log(`🔍 Basic pattern matching: ${endpointsArr.length} endpoints, ${usagesArr.length} usages across ${Object.keys(repos).length} repos`);
+  
+  for (const usage of usagesArr) {
+    if (!usage.url) continue;
+    
+    // Extract service information from URLs like:
+    // http://user-service:3001 -> user-service
+    // http://payment-service:3002 -> payment-service  
+    // http://localhost:3001 -> localhost:3001
+    let targetServiceName = '';
+    let targetPort = '';
+    
+    try {
+      const url = new URL(usage.url);
+      const hostname = url.hostname;
+      targetPort = url.port;
+      
+      // Map service hostnames to repository IDs
+      if (hostname.includes('user-service') || (hostname === 'localhost' && targetPort === '3001')) {
+        targetServiceName = 'demo-user-service';
+      } else if (hostname.includes('payment-service') || (hostname === 'localhost' && targetPort === '3002')) {
+        targetServiceName = 'demo-payment-service';
+      } else if (hostname.includes('transaction-service') || (hostname === 'localhost' && targetPort === '3003')) {
+        targetServiceName = 'demo-transaction-service';
+      }
+      
+      // Find a matching repository
+      const targetRepo = Object.values(repos).find(repo => 
+        repo.id === targetServiceName || 
+        repo.name === targetServiceName ||
+        repo.name.includes(targetServiceName.replace('demo-', ''))
+      );
+      
+      if (targetRepo && targetRepo.id !== usage.repoId) {
+        // Create edge for this cross-repository call
+        const edgeId = `${usage.repoId}-${targetRepo.id}-${usage.method || 'CALL'}-${usage.endpointPath}`;
+        const existingEdge = edges.find(e => 
+          e.fromRepoId === usage.repoId && 
+          e.toRepoId === targetRepo.id &&
+          e.label.includes(usage.endpointPath)
+        );
+        
+        if (existingEdge) {
+          existingEdge.count++;
+          if (!existingEdge.usageIds.includes(usage.id)) {
+            existingEdge.usageIds.push(usage.id);
+          }
+        } else {
+          edges.push({
+            fromRepoId: usage.repoId,
+            toRepoId: targetRepo.id,
+            label: `${usage.method || 'CALL'} ${usage.endpointPath} (${usage.url})`,
+            count: 1,
+            endpointIds: [], // We'd need to match specific endpoints
+            usageIds: [usage.id]
+          });
+        }
+        
+        console.log(`  📡 Found relationship: ${usage.repoId} -> ${targetRepo.id} (${usage.url})`);
+      }
+    } catch (error) {
+      // Skip invalid URLs
+      continue;
+    }
+  }
+  
+  console.log(`✅ Basic pattern matching found ${edges.length} cross-repository relationships`);
+
+  // Enhanced Groq-based edge detection
+  try {
+    const tempIndex: MultirepoIndex = {
+      version: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      configHash: '',
+      repos,
+      endpoints,
+      usages,
+      edges: [],
+      lastScanAt: new Date().toISOString()
+    };
+
+    // Only run Groq analysis if we have multiple repos and GROQ_API_KEY is set
+    if (Object.keys(repos).length > 1 && process.env.GROQ_API_KEY) {
+      console.log('🧠 Running Groq analysis for intelligent relationship detection...');
+      const groqAnalyzer = new GroqAnalyzer();
+      const analysis = await groqAnalyzer.analyzeRelationships(tempIndex);
+      const groqEdges = groqAnalyzer.convertToEdges(analysis, tempIndex);
+      
+      // Merge Groq edges with basic edges, prioritizing Groq
+      const mergedEdges = [...edges];
+      for (const groqEdge of groqEdges) {
+        // Check if we already have a similar edge
+        const existingEdge = mergedEdges.find(e => 
+          e.fromRepoId === groqEdge.fromRepoId && 
+          e.toRepoId === groqEdge.toRepoId
+        );
+        
+        if (existingEdge) {
+          // Enhance existing edge with Groq analysis
+          existingEdge.groqAnalysis = groqEdge.groqAnalysis;
+        } else {
+          // Add new Groq-discovered edge
+          mergedEdges.push(groqEdge);
+        }
+      }
+      edges = mergedEdges;
+      
+      console.log(`✅ Groq analysis complete: ${groqEdges.length} intelligent relationships found`);
+      
+      // Log insights
+      if (analysis.insights.length > 0) {
+        console.log('💡 Groq Insights:');
+        analysis.insights.forEach(insight => {
+          console.log(`  [${insight.type}] ${insight.message} (confidence: ${insight.confidence})`);
+        });
+      }
+    } else if (Object.keys(repos).length <= 1) {
+      console.log('ℹ️ Skipping Groq analysis: Only one repository found');
+    } else {
+      console.log('ℹ️ Skipping Groq analysis: GROQ_API_KEY not set. Set it to enable AI-powered relationship detection.');
+    }
+  } catch (error) {
+    console.error('❌ Groq analysis failed:', error);
+    // Continue with basic edges only
+  }
 
   const now = new Date().toISOString();
   const index: MultirepoIndex = {
